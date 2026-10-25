@@ -1,9 +1,75 @@
-import EmbeddedPostgres from 'embedded-postgres';import pg from 'pg';import {createServer} from 'node:net';import {randomBytes} from 'node:crypto';import {Database} from '../src/db.js';import {migrate} from '../src/migrate.js';import {seed} from '../src/seed.js';import type {Config} from '../src/config.js';
-export async function testDatabase(){const suffix=randomBytes(6).toString('hex'),schema=`stms_test_${suffix}`,role=`stms_test_${suffix}`,password=randomBytes(24).toString('hex');let embedded:EmbeddedPostgres|undefined;let url=process.env.TEST_DATABASE_URL;
- if(!url){const port=await new Promise<number>(resolve=>{const net=createServer();net.listen(0,'127.0.0.1',()=>{const p=(net.address() as {port:number}).port;net.close(()=>resolve(p))})});embedded=new EmbeddedPostgres({databaseDir:`./.test-postgres/${suffix}`,user:'postgres',password,port,persistent:false,onLog:()=>{},onError:()=>{}});await embedded.initialise();await embedded.start();url=`postgresql://postgres:${password}@127.0.0.1:${port}/postgres`}
- const admin=new pg.Pool({connectionString:url});await admin.query(`CREATE SCHEMA ${schema}`);
- let scopedUrl=url;let madeRole=false;
- if(embedded){await admin.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS`);await admin.query(`ALTER SCHEMA ${schema} OWNER TO ${role}`);const u=new URL(url);u.username=role;scopedUrl=u.toString();madeRole=true}
- const c:Config={DATABASE_URL:scopedUrl,JWT_SECRET:randomBytes(48).toString('hex'),WEBHOOK_SECRET:randomBytes(48).toString('hex'),DOCUMENT_KEY:randomBytes(32).toString('hex'),NODE_ENV:'test',DEMO_ENABLED:'true',DATABASE_SSL:'false',PORT:3000};const db=new Database(c,schema);await migrate(db);await seed(db,c.DOCUMENT_KEY);
- return {db,c,async close(){await db.close();await admin.query(`DROP SCHEMA ${schema} CASCADE`);if(madeRole)await admin.query(`DROP ROLE ${role}`);await admin.end();await embedded?.stop()}};
+import EmbeddedPostgres from "embedded-postgres";
+import pg from "pg";
+import { createServer } from "node:net";
+import { randomBytes } from "node:crypto";
+import { Database } from "../src/db.js";
+import { migrate } from "../src/migrate.js";
+import { seed } from "../src/seed.js";
+import type { Config } from "../src/config.js";
+export async function testDatabase() {
+  const suffix = randomBytes(6).toString("hex"),
+    schema = `stms_test_${suffix}`,
+    role = `stms_test_${suffix}`,
+    password = randomBytes(24).toString("hex");
+  let embedded: EmbeddedPostgres | undefined;
+  let url = process.env.TEST_DATABASE_URL;
+  if (!url) {
+    const port = await new Promise<number>((resolve) => {
+      const net = createServer();
+      net.listen(0, "127.0.0.1", () => {
+        const p = (net.address() as { port: number }).port;
+        net.close(() => resolve(p));
+      });
+    });
+    embedded = new EmbeddedPostgres({
+      databaseDir: `./.test-postgres/${suffix}`,
+      user: "postgres",
+      password,
+      port,
+      persistent: false,
+      onLog: () => {},
+      onError: () => {},
+    });
+    await embedded.initialise();
+    await embedded.start();
+    url = `postgresql://postgres:${password}@127.0.0.1:${port}/postgres`;
+  }
+  const admin = new pg.Pool({ connectionString: url });
+  await admin.query(`CREATE SCHEMA ${schema}`);
+  let scopedUrl = url;
+  let madeRole = false;
+  if (embedded) {
+    await admin.query(
+      `CREATE ROLE ${role} LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS`,
+    );
+    await admin.query(`ALTER SCHEMA ${schema} OWNER TO ${role}`);
+    const u = new URL(url);
+    u.username = role;
+    scopedUrl = u.toString();
+    madeRole = true;
+  }
+  const c: Config = {
+    DATABASE_URL: scopedUrl,
+    JWT_SECRET: randomBytes(48).toString("hex"),
+    WEBHOOK_SECRET: randomBytes(48).toString("hex"),
+    DOCUMENT_KEY: randomBytes(32).toString("hex"),
+    NODE_ENV: "test",
+    DEMO_ENABLED: "true",
+    DATABASE_SSL: "false",
+    PORT: 3000,
+  };
+  const db = new Database(c, schema);
+  await migrate(db);
+  await seed(db, c.DOCUMENT_KEY);
+  return {
+    db,
+    c,
+    async close() {
+      await db.close();
+      await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+      if (madeRole) await admin.query(`DROP ROLE ${role}`);
+      await admin.end();
+      await embedded?.stop();
+    },
+  };
 }

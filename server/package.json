@@ -12,7 +12,8 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "migrate": "tsx src/migrate.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "fees": "tsx src/generate-fees.ts"
   },
   "keywords": [],
   "type": "module",
@@ -37,6 +38,7 @@
     "@types/pg": "8.23.1",
     "@types/supertest": "7.2.1",
     "embedded-postgres": "18.4.0-beta.17",
+    "prettier": "3.9.10",
     "socket.io-client": "4.8.4",
     "supertest": "7.3.1",
     "tsx": "4.23.15",
