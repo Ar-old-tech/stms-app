@@ -1,0 +1,213 @@
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+@import "@fontsource/space-grotesk/latin-400.css";
+@import "@fontsource/space-grotesk/latin-600.css";
+@import "@fontsource/space-grotesk/latin-700.css";
+:root {
+  font-family: Inter, Arial, sans-serif;
+  color: #e8f1f8;
+  background: #071019;
+  font-synthesis: none;
+  font-weight: 400;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+h1,
+h2,
+h3,
+strong {
+  font-family: "Space Grotesk", Inter, sans-serif;
+}
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+h2 {
+  font-size: 22px;
+  letter-spacing: -0.8px;
+  margin-bottom: 4px;
+}
+h3 {
+  font-size: 15px;
+}
+p {
+  line-height: 1.6;
+}
+small {
+  display: block;
+  color: #8498aa;
+  font-size: 11px;
+  line-height: 1.6;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  border: 1px solid #233747;
+  background: #132330;
+  color: #dceaf4;
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+button:hover {
+  background: #1e3748;
+  transform: translateY(-1px);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #21dcf5;
+  outline-offset: 3px;
+}
+input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  background: #0b1823;
+  border: 1px solid #28404f;
+  border-radius: 8px;
+  color: #e8f1f8;
+  padding: 11px;
+  margin: 6px 0 10px;
+  font-size: 13px;
+}
+label {
+  display: block;
+  font-size: 12px;
+  color: #a6bac9;
+  margin-top: 10px;
+}
+a {
+  color: #21dcf5;
+  text-decoration: none;
+}
+summary {
+  cursor: pointer;
+  font-size: 12px;
+  padding: 12px 0;
+  color: #a9c4d4;
+}
+details {
+  min-width: 0;
+}
+svg {
+  flex-shrink: 0;
+}
+.primary {
+  background: #21dcf5;
+  color: #04141c;
+  border-color: #21dcf5;
+}
+.primary:hover {
+  background: #72edfc;
+}
+.danger {
+  background: #341a25;
+  border-color: #713244;
+  color: #ff9da9;
+}
+.wide {
+  width: 100%;
+  margin-top: 12px;
+}
+.large {
+  min-height: 54px;
+  font-size: 15px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #2b4655;
+  background: #152a38;
+  color: #a9d2df;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  border-radius: 6px;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+.chip.verified,
+.chip.going,
+.chip.paid,
+.chip.live,
+.chip.resolved {
+  color: #66e9ac;
+  background: #11332b;
+  border-color: #245144;
+}
+.chip.pending,
+.chip.warning,
+.chip.expires-within-30-days {
+  color: #efc16a;
+  background: #332a18;
+  border-color: #5d4926;
+}
+.chip.failed,
+.chip.sos,
+.chip.rejected {
+  color: #ff91a2;
+  background: #3b1b29;
+  border-color: #6c3143;
+}
+.live-dot {
+  display: inline-block;
+  height: 6px;
+  width: 6px;
+  background: #45e3bd;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #45e3bd;
+  margin-right: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
