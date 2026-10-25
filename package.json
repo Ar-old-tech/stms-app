@@ -1,1 +1,16 @@
-{"name":"stms","private":true,"scripts":{"build":"npm --prefix demo-web ci && npm --prefix demo-web run build && npm --prefix server ci && npm --prefix server run build","start":"npm --prefix server start","migrate":"npm --prefix server run migrate","seed":"npm --prefix server run seed","test":"npm --prefix server test","dev":"npm --prefix server run dev"},"engines":{"node":">=22.12.0"}}
+{
+  "name": "stms",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix demo-web ci --include=dev && npm --prefix server ci --include=dev",
+    "build": "npm --prefix demo-web run build && npm --prefix server run build",
+    "start": "npm --prefix server start",
+    "migrate": "npm --prefix server run migrate",
+    "seed": "npm --prefix server run seed",
+    "test": "npm --prefix server test",
+    "dev": "npm --prefix server run dev"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

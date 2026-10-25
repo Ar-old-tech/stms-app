@@ -1,2 +1,60 @@
-import {afterEach,describe,it,expect,vi} from 'vitest';import {request,ApiError} from './api';import {cutoffLocked,distance} from './routing';
-afterEach(()=>vi.restoreAllMocks());describe('API transport and display helpers',()=>{it('authenticates JSON mutations and uses no-store',async()=>{const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({ok:true}),{status:200,headers:{'Content-Type':'application/json'}}));expect(await request('session-token','/students/me/attendance',{status:'GOING'},'PUT')).toEqual({ok:true});const options=fetcher.mock.calls[0][1]!;expect(options.headers).toMatchObject({Authorization:'Bearer session-token'});expect(options.cache).toBe('no-store');expect(options.method).toBe('PUT')});it('surfaces server errors instead of pretending a mutation succeeded',async()=>{vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({error:'Attendance locked'}),{status:423}));await expect(request('token','/students/me/attendance',{status:'NOT_GOING'},'PUT')).rejects.toBeInstanceOf(ApiError)});it('preserves FormData and boundary generation for real uploads',async()=>{const fetcher=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('{}'));const form=new FormData();form.set('name','Driver');await request('token','/drivers/register',form);expect(fetcher.mock.calls[0][1]!.body).toBe(form);expect(fetcher.mock.calls[0][1]!.headers).not.toHaveProperty('Content-Type')});it('displays the inclusive cutoff and stable geographic distance',()=>{expect(cutoffLocked(21600,'06:00')).toBe(true);expect(cutoffLocked(21599,'06:00')).toBe(false);expect(distance([33,73],[33,73])).toBe(0)})});
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { request, ApiError } from "./api";
+import { cutoffLocked, distance } from "./routing";
+afterEach(() => vi.restoreAllMocks());
+describe("API transport and display helpers", () => {
+  it("authenticates JSON mutations and uses no-store", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    expect(
+      await request(
+        "session-token",
+        "/students/me/attendance",
+        { status: "GOING" },
+        "PUT",
+      ),
+    ).toEqual({ ok: true });
+    const options = fetcher.mock.calls[0][1]!;
+    expect(options.headers).toMatchObject({
+      Authorization: "Bearer session-token",
+    });
+    expect(options.cache).toBe("no-store");
+    expect(options.method).toBe("PUT");
+  });
+  it("surfaces server errors instead of pretending a mutation succeeded", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Attendance locked" }), {
+        status: 423,
+      }),
+    );
+    await expect(
+      request(
+        "token",
+        "/students/me/attendance",
+        { status: "NOT_GOING" },
+        "PUT",
+      ),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+  it("preserves FormData and boundary generation for real uploads", async () => {
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}"));
+    const form = new FormData();
+    form.set("name", "Driver");
+    await request("token", "/drivers/register", form);
+    expect(fetcher.mock.calls[0][1]!.body).toBe(form);
+    expect(fetcher.mock.calls[0][1]!.headers).not.toHaveProperty(
+      "Content-Type",
+    );
+  });
+  it("displays the inclusive cutoff and stable geographic distance", () => {
+    expect(cutoffLocked(21600, "06:00")).toBe(true);
+    expect(cutoffLocked(21599, "06:00")).toBe(false);
+    expect(distance([33, 73], [33, 73])).toBe(0);
+  });
+});

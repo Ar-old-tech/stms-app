@@ -140,7 +140,7 @@ export default function Admin({ demoStep = -1 }: { demoStep?: number }) {
                 <div className="documents">
                   {d.photos.map((url, i) => (
                     <DocumentImage
-                      key={url}
+                      key={`${d.id}-${i}`}
                       url={url}
                       label={["CNIC", "License", "Registration"][i]}
                     />

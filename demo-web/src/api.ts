@@ -1,8 +1,8 @@
 export class ApiError extends Error {
-  status:number;
-  constructor(status:number,message:string) {
+  status: number;
+  constructor(status: number, message: string) {
     super(message);
-    this.status=status;
+    this.status = status;
   }
 }
 export async function request<T = Record<string, any>>(

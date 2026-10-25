@@ -5,7 +5,13 @@ import type { Api } from "./http.js";
 import { empty, id, name, point } from "./http.js";
 import type { Config } from "./config.js";
 import { HttpError, requireValue } from "./errors.js";
-import { decrypt, encrypt, identifier, driverIdentifier } from "./crypto.js";
+import {
+  decrypt,
+  encrypt,
+  identifier,
+  driverIdentifier,
+  cnicFingerprint,
+} from "./crypto.js";
 const admin = ["ADMIN"] as const;
 const student = z
   .object({
@@ -138,7 +144,7 @@ export function management(api: Api, c: Config) {
         ).rows[0].id;
       }
       await q.query(
-        "INSERT INTO driver_verifications(tenant_id,driver_id,cnic_number,license_number,license_expiry,vehicle_reg_number) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(driver_id) DO UPDATE SET cnic_number=EXCLUDED.cnic_number,license_number=EXCLUDED.license_number,license_expiry=EXCLUDED.license_expiry,vehicle_reg_number=EXCLUDED.vehicle_reg_number,status='PENDING',rejection_reason=NULL WHERE driver_verifications.tenant_id=$1",
+        "INSERT INTO driver_verifications(tenant_id,driver_id,cnic_number,license_number,license_expiry,vehicle_reg_number,cnic_fingerprint) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(driver_id) DO UPDATE SET cnic_number=EXCLUDED.cnic_number,cnic_fingerprint=EXCLUDED.cnic_fingerprint,license_number=EXCLUDED.license_number,license_expiry=EXCLUDED.license_expiry,vehicle_reg_number=EXCLUDED.vehicle_reg_number,status='PENDING',rejection_reason=NULL WHERE driver_verifications.tenant_id=$1",
         [
           tenant,
           driverId,
@@ -146,6 +152,7 @@ export function management(api: Api, c: Config) {
           b.license,
           b.expiry,
           b.reg,
+          cnicFingerprint(b.cnic, c.DOCUMENT_KEY),
         ],
       );
       for (const [i, kind] of ["cnic", "license", "vehicle"].entries())
@@ -527,7 +534,7 @@ export function management(api: Api, c: Config) {
           [b.name, b.type, b.plan, b.email],
         )
       ).rows[0];
-      const customId = `SCH-${t.id}-${identifier("ADM").slice(4)}`;
+      const customId = `SCH-${identifier("ADM").slice(4)}-ADM`;
       await q.query(
         "INSERT INTO users(tenant_id,custom_id,name,password_hash,role) VALUES($1,$2,$3,$4,'ADMIN')",
         [t.id, customId, b.adminName, await bcrypt.hash(b.adminPassword, 12)],

@@ -1,4 +1,6 @@
-# Demo acceptance report
+# Historical browser-only prototype acceptance report
+
+This report describes the earlier simulated prototype. Current real-backend results are in [REAL_QUALITY_REPORT.md](REAL_QUALITY_REPORT.md).
 
 Verified on 25 October 2026 with Node 24.21.0, npm 11.19.0 and Playwright Chromium 156. Tests are local browser tests; the connected browser tool exposed no browser, so the UI walkthrough used the included headless harness and saved screenshots.
 

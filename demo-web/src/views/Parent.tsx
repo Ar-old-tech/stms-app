@@ -27,7 +27,8 @@ export default function Parent() {
     s = state.data;
   const [search, setSearch] = useState(""),
     [sheet, setSheet] = useState<string | null>(null),
-    [gateway, setGateway] = useState("JazzCash");
+    [gateway, setGateway] = useState("JazzCash"),
+    [paying, setPaying] = useState(false);
   if (!s?.settings) return null;
   const student = s.students[0],
     trip = s.trip;
@@ -44,14 +45,15 @@ export default function Parent() {
     if (!sheet) return;
     const f = s!.fees.find((x) => x.id === sheet);
     if (!f) return;
-    const session = await state.act(`/fees/${f.id}/pay`, { gateway });
-    if (!session) return;
-    const signed = await state.act(`/fees/${f.id}/sandbox-complete`, {
-      session: session.session,
-      success,
-    });
-    if (!signed) return;
+    setPaying(true);
     try {
+      const session = await state.act(`/fees/${f.id}/pay`, { gateway });
+      if (!session) return;
+      const signed = await state.act(`/fees/${f.id}/sandbox-complete`, {
+        session: session.session,
+        success,
+      });
+      if (!signed) return;
       const response = await fetch(signed.webhook, {
         method: "POST",
         headers: {
@@ -59,6 +61,7 @@ export default function Parent() {
           "x-payment-signature": signed.signature,
         },
         body: signed.webhookBody,
+        signal: AbortSignal.timeout(20000),
       });
       if (!response.ok) {
         const b = await response.json();
@@ -68,7 +71,13 @@ export default function Parent() {
       setSheet(null);
       if (success) celebrate();
     } catch (e) {
-      state.reportError(e instanceof Error?e.message:'Sandbox callback failed. Please retry.');
+      state.reportError(
+        e instanceof Error
+          ? e.message
+          : "Sandbox callback failed. Please retry.",
+      );
+    } finally {
+      setPaying(false);
     }
   }
   return (
@@ -230,17 +239,23 @@ export default function Parent() {
           <button
             className="primary"
             disabled={state.pending > 0}
-            onClick={() => void complete(true)}
+            onClick={() => {
+              if (!paying) void complete(true);
+            }}
           >
             Sandbox success · {gateway}
           </button>
           <button
             disabled={state.pending > 0}
-            onClick={() => void complete(false)}
+            onClick={() => {
+              if (!paying) void complete(false);
+            }}
           >
             Sandbox failure
           </button>
-          <button onClick={() => setSheet(null)}>Cancel</button>
+          <button disabled={paying} onClick={() => setSheet(null)}>
+            Cancel
+          </button>
         </div>
       )}
       <Inbox />

@@ -2,7 +2,35 @@
   background: radial-gradient(ellipse at 55% 10%, #10303b60, transparent 50%);
   min-height: 100vh;
 }
-.connection-state{font-size:8px;letter-spacing:1px;color:#6c9db0;margin-bottom:13px}.notice.error{background:#351d2b;border-color:#ed6b84;color:#ffbeca}.credentials{white-space:pre-wrap;overflow-wrap:anywhere;font-size:10px;color:#8fe2dc}.panel form+form{border-top:1px solid #294453;margin-top:20px;padding-top:12px}.documents>*{min-width:0;flex:1}.phone-content{overflow-wrap:anywhere}
+.connection-state {
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #6c9db0;
+  margin-bottom: 13px;
+}
+.notice.error {
+  background: #351d2b;
+  border-color: #ed6b84;
+  color: #ffbeca;
+}
+.credentials {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+  color: #8fe2dc;
+}
+.panel form + form {
+  border-top: 1px solid #294453;
+  margin-top: 20px;
+  padding-top: 12px;
+}
+.documents > * {
+  min-width: 0;
+  flex: 1;
+}
+.phone-content {
+  overflow-wrap: anywhere;
+}
 .floating-toast {
   position: absolute;
   bottom: 24px;

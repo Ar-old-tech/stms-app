@@ -26,6 +26,29 @@ export default function Driver() {
         <Chip>{d?.status ?? "PENDING"}</Chip>
       </div>
       <LiveMap />
+      <Panel title="Driver phone GPS">
+        <label>
+          Location source
+          <select
+            aria-label="Location source"
+            value={state.tracking.mode}
+            onChange={(e) =>
+              state.setTracking({
+                mode: e.target.value as "phone" | "bot" | "off",
+              })
+            }
+          >
+            <option value="phone">Phone GPS · real location</option>
+            {s.demoEnabled && <option value="bot">SIMULATED driver bot</option>}
+            <option value="off">Tracking paused</option>
+          </select>
+        </label>
+        <small>{state.tracking.status}</small>
+        <small>
+          {state.tracking.queued} buffered points · screen wake lock requested
+          during active phone tracking
+        </small>
+      </Panel>
       <div
         className={`speedometer ${(trip?.speed ?? 0) > 60 ? "over-speed" : ""}`}
       >

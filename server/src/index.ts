@@ -8,9 +8,13 @@ server.finish();
 server.http.listen(c.PORT, "0.0.0.0", () =>
   console.log(`STMS listening on port ${c.PORT}`),
 );
+let closing = false;
 for (const signal of ["SIGTERM", "SIGINT"])
   process.on(signal, () => {
-    server.http.close(() => {
-      void db.close().then(() => process.exit(0));
-    });
+    if (closing) return;
+    closing = true;
+    void server.runtime
+      .close()
+      .then(() => db.close())
+      .then(() => process.exit(0));
   });

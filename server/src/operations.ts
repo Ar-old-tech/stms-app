@@ -17,6 +17,10 @@ export async function ensureDay(q: Db, tenant: string) {
   );
   const clock = tenantClock(t);
   await q.query(
+    "INSERT INTO notifications(tenant_id,user_id,kind,message,dedupe_key) SELECT v.tenant_id,a.id,'LICENSE_EXPIRY',u.name||': license expires '||v.license_expiry::text,'license:'||v.driver_id::text||':'||v.license_expiry::text FROM driver_verifications v JOIN users u ON u.tenant_id=v.tenant_id AND u.id=v.driver_id JOIN users a ON a.tenant_id=v.tenant_id AND a.role='ADMIN' WHERE v.tenant_id=$1 AND v.license_expiry BETWEEN current_date AND current_date+30 ON CONFLICT(tenant_id,user_id,dedupe_key) DO NOTHING",
+    [tenant],
+  );
+  await q.query(
     "INSERT INTO daily_attendance(tenant_id,student_id,trip_date) SELECT u.tenant_id,u.id,$2 FROM users u JOIN student_stops s ON s.tenant_id=u.tenant_id AND s.student_id=u.id WHERE u.tenant_id=$1 AND u.role='STUDENT' AND u.active=true ON CONFLICT(tenant_id,student_id,trip_date) DO NOTHING",
     [tenant, clock.date],
   );
@@ -189,7 +193,7 @@ export function operations(api: Api, rt: Runtime, c: Config) {
       [user.tenantId, params.id],
     );
     const ordered = await rt.ordered(q, user.tenantId!, trip, true);
-    ctx.send(`trip:${params.id}`, "route", ordered);
+    ctx.send(`user:${user.userId}`, "route", ordered);
     return ordered;
   });
   api.route(
@@ -271,7 +275,10 @@ export function operations(api: Api, rt: Runtime, c: Config) {
               ? rt.live.get(`${user.tenantId}:${trip.id}`)?.eta
               : null,
         };
-      if (user.role === "DRIVER" && trip.status === "IDLE")
+      if (
+        user.role === "DRIVER" &&
+        !["IN_PROGRESS", "ARRIVED"].includes(trip.status)
+      )
         return {
           stops: [],
           line: [],
@@ -515,6 +522,9 @@ export function operations(api: Api, rt: Runtime, c: Config) {
         [user.tenantId],
       );
       await q.query("DELETE FROM routes WHERE tenant_id=$1", [user.tenantId]);
+      await q.query("DELETE FROM notifications WHERE tenant_id=$1", [
+        user.tenantId,
+      ]);
       await q.query("DELETE FROM vehicles WHERE tenant_id=$1", [user.tenantId]);
       await q.query("DELETE FROM users WHERE tenant_id=$1 AND id<>$2", [
         user.tenantId,
@@ -565,27 +575,25 @@ export function operations(api: Api, rt: Runtime, c: Config) {
       return {
         demo: true,
         date: clock.date,
-        sessions: [driver, student]
-          .filter(Boolean)
-          .map((u) => ({
-            token: tokenFor(
-              {
-                userId: u.id,
-                tenantId: u.tenant_id,
-                role: u.role,
-                version: u.token_version,
-              },
-              c,
-            ),
-            user: {
+        sessions: [driver, student].filter(Boolean).map((u) => ({
+          token: tokenFor(
+            {
               userId: u.id,
               tenantId: u.tenant_id,
               role: u.role,
-              name: u.name,
-              customId: u.custom_id,
               version: u.token_version,
             },
-          })),
+            c,
+          ),
+          user: {
+            userId: u.id,
+            tenantId: u.tenant_id,
+            role: u.role,
+            name: u.name,
+            customId: u.custom_id,
+            version: u.token_version,
+          },
+        })),
       };
     },
   );

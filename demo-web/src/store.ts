@@ -11,8 +11,13 @@ export type ClientState = {
   pending: number;
   error: string;
   connected: boolean;
-  tracking:{mode:'phone'|'bot'|'off';status:string;queued:number;botRate:number};
-  setTracking:(value:Partial<ClientState['tracking']>)=>void;
+  tracking: {
+    mode: "phone" | "bot" | "off";
+    status: string;
+    queued: number;
+    botRate: number;
+  };
+  setTracking: (value: Partial<ClientState["tracking"]>) => void;
   refresh: () => Promise<void>;
   act: <T = Record<string, any>>(
     path: string,
@@ -20,14 +25,14 @@ export type ClientState = {
     method?: string,
   ) => Promise<T | null>;
   clearError: () => void;
-  reportError:(message:string)=>void;
+  reportError: (message: string) => void;
   dispose: () => void;
 };
 export function createSession(session: Session) {
   let again = false,
     disposed = false;
-  let refreshPromise:Promise<void>|null=null;
-  let joinedTrip='';
+  let refreshPromise: Promise<void> | null = null;
+  let joinedTrip = "";
   let timer: ReturnType<typeof setTimeout> | undefined;
   const store = createStore<ClientState>((set, get) => ({
     session,
@@ -36,30 +41,51 @@ export function createSession(session: Session) {
     pending: 0,
     error: "",
     connected: false,
-    tracking:{mode:'phone',status:'GPS starts when your trip starts',queued:0,botRate:1},
-    setTracking:value=>set(s=>({tracking:{...s.tracking,...value}})),
+    tracking: {
+      mode: "phone",
+      status: "GPS starts when your trip starts",
+      queued: 0,
+      botRate: 1,
+    },
+    setTracking: (value) =>
+      set((s) => ({ tracking: { ...s.tracking, ...value } })),
     refresh: async () => {
       if (disposed) return;
       if (refreshPromise) {
         again = true;
         return refreshPromise;
       }
-      refreshPromise=(async()=>{do {again=false;try {
-        const data = await request<Workspace>(session.token, "/workspace");
-        if (!disposed) {
-          set({ data, loading: false, error: "" });
-          if(socket.connected&&data.trip&&['DRIVER','STUDENT'].includes(session.user.role)&&joinedTrip!==data.trip.id){joinedTrip=data.trip.id;socket.emit('joinTrip',data.trip.id)}
-        }
-      } catch (e) {
-        if (!disposed)
-          set({
-            loading: false,
-            error: e instanceof Error ? e.message : "Connection failed",
-            ...(e instanceof ApiError && e.status === 401
-              ? { data: null }
-              : {}),
-          });
-      }}while(again&&!disposed)})().finally(()=>{refreshPromise=null});
+      refreshPromise = (async () => {
+        do {
+          again = false;
+          try {
+            const data = await request<Workspace>(session.token, "/workspace");
+            if (!disposed) {
+              set({ data, loading: false, error: "" });
+              if (
+                socket.connected &&
+                data.trip &&
+                ["DRIVER", "STUDENT"].includes(session.user.role) &&
+                joinedTrip !== data.trip.id
+              ) {
+                joinedTrip = data.trip.id;
+                socket.emit("joinTrip", data.trip.id);
+              }
+            }
+          } catch (e) {
+            if (!disposed)
+              set({
+                loading: false,
+                error: e instanceof Error ? e.message : "Connection failed",
+                ...(e instanceof ApiError && e.status === 401
+                  ? { data: null }
+                  : {}),
+              });
+          }
+        } while (again && !disposed);
+      })().finally(() => {
+        refreshPromise = null;
+      });
       return refreshPromise;
     },
     act: async (path, body, method) => {
@@ -76,7 +102,7 @@ export function createSession(session: Session) {
       }
     },
     clearError: () => set({ error: "" }),
-    reportError:message=>set({error:message}),
+    reportError: (message) => set({ error: message }),
     dispose: () => {
       disposed = true;
       clearTimeout(timer);
@@ -93,7 +119,7 @@ export function createSession(session: Session) {
     timer = setTimeout(() => void store.getState().refresh(), 100);
   };
   socket.on("connect", () => {
-    joinedTrip='';
+    joinedTrip = "";
     store.setState({ connected: true });
     void store
       .getState()
@@ -126,11 +152,7 @@ export function createSession(session: Session) {
             timestamp: p.timestamp,
             simulated: p.simulated,
             status: p.status,
-            eta:
-              p.etaStudent === session.user.userId ||
-              session.user.role !== "STUDENT"
-                ? p.eta
-                : null,
+            eta: data.trip.eta,
           },
           trips: data.trips.map((t) =>
             t.id === p.tripId

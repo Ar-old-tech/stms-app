@@ -10,14 +10,16 @@ import { HttpError } from "./errors.js";
 import { Api } from "./http.js";
 import { management } from "./management.js";
 import multer from "multer";
-import { Runtime } from './runtime.js';
-import { operations,webhook } from './operations.js';
-import { workspace } from './workspace.js';
+import { Runtime } from "./runtime.js";
+import { operations, webhook } from "./operations.js";
+import { workspace } from "./workspace.js";
+import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 declare global {
   namespace Express {
     interface Request {
       user: Identity;
-      rawBody?:Buffer;
+      rawBody?: Buffer;
     }
   }
 }
@@ -44,12 +46,34 @@ export function createApp(db: Database, c: Config) {
       },
     }),
   );
-  app.use(express.json({ limit: "1mb",verify(req,_res,buffer){(req as express.Request).rawBody=Buffer.from(buffer)} }));
+  app.use(
+    express.json({
+      limit: "1mb",
+      verify(req, _res, buffer) {
+        (req as express.Request).rawBody = Buffer.from(buffer);
+      },
+    }),
+  );
+  app.use("/api", (_req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    next();
+  });
   const api = new Api(app, db);
-  const http=createServer(app);
-  const runtime=new Runtime(db,c,api,http);
-  app.get('/api/v1/config',(_req,res)=>res.json({demoEnabled:c.DEMO_ENABLED==='true'}));
-  webhook(api,c);
+  const http = createServer(app);
+  const runtime = new Runtime(db, c, api, http);
+  app.get("/api/v1/config", (_req, res) =>
+    res.json({ demoEnabled: c.DEMO_ENABLED === "true" }),
+  );
+  webhook(api, c);
+  app.use(
+    "/api/v1/drivers/register",
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      limit: c.NODE_ENV === "test" ? 1000 : 10,
+      standardHeaders: "draft-7",
+      legacyHeaders: false,
+    }),
+  );
   app.get(["/health", "/api/v1/health"], async (_req, res) => {
     await db.pool.query("SELECT 1");
     res.json({ status: "ok" });
@@ -108,14 +132,29 @@ export function createApp(db: Database, c: Config) {
     );
   });
   management(api, c);
-  operations(api,runtime,c);
-  workspace(api,runtime,c);
+  operations(api, runtime, c);
+  workspace(api, runtime, c);
   return {
     app,
     api,
     runtime,
     http,
     finish() {
+      const client = fileURLToPath(
+        new URL("../../demo-web/dist/", import.meta.url),
+      );
+      if (existsSync(client)) {
+        app.use(express.static(client, { index: false }));
+        app.use((req, res, next) => {
+          if (
+            req.method === "GET" &&
+            !req.path.startsWith("/api/") &&
+            !req.path.startsWith("/socket.io")
+          )
+            res.sendFile(`${client}/index.html`);
+          else next();
+        });
+      }
       app.use((_req, res) => res.status(404).json({ error: "Not found" }));
       app.use(
         (
@@ -125,12 +164,10 @@ export function createApp(db: Database, c: Config) {
           _next: express.NextFunction,
         ) => {
           if (error instanceof multer.MulterError) {
-            res
-              .status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400)
-              .json({
-                error:
-                  "Upload rejected. Use three images, each no larger than 2 MB.",
-              });
+            res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
+              error:
+                "Upload rejected. Use three images, each no larger than 2 MB.",
+            });
             return;
           }
           if (error instanceof SyntaxError) {
@@ -138,15 +175,13 @@ export function createApp(db: Database, c: Config) {
             return;
           }
           if (error instanceof z.ZodError) {
-            res
-              .status(400)
-              .json({
-                error: "Invalid request",
-                fields: error.issues.map((x) => ({
-                  path: x.path,
-                  message: x.message,
-                })),
-              });
+            res.status(400).json({
+              error: "Invalid request",
+              fields: error.issues.map((x) => ({
+                path: x.path,
+                message: x.message,
+              })),
+            });
             return;
           }
           if (error instanceof HttpError) {
@@ -155,11 +190,9 @@ export function createApp(db: Database, c: Config) {
           }
           const code = (error as { code?: string })?.code;
           if (code === "23505" || code === "23503" || code === "23514") {
-            res
-              .status(409)
-              .json({
-                error: "Record conflicts with existing data or an assignment",
-              });
+            res.status(409).json({
+              error: "Record conflicts with existing data or an assignment",
+            });
             return;
           }
           res.status(500).json({ error: "Request failed. Please try again." });

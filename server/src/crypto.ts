@@ -12,6 +12,11 @@ export function identifier(prefix: string) {
 export function driverIdentifier() {
   return `DRV-${randomInt(1000, 10000)}`;
 }
+export function cnicFingerprint(value: string, key: string) {
+  return createHmac("sha256", Buffer.from(key, "hex"))
+    .update(`cnic:${value.toUpperCase().replace(/[\s-]/g, "")}`)
+    .digest();
+}
 export function encrypt(data: Buffer, key: string) {
   const iv = randomBytes(12),
     cipher = createCipheriv("aes-256-gcm", Buffer.from(key, "hex"), iv);

@@ -22,6 +22,18 @@ export default function SuperAdmin() {
           </strong>
           <small>Institutions</small>
         </div>
+        <div className="kpi">
+          <strong>
+            <Counter value={s.stats?.students ?? 0} />
+          </strong>
+          <small>Students</small>
+        </div>
+        <div className="kpi">
+          <strong>
+            <Counter value={s.stats?.activeTrips ?? 0} />
+          </strong>
+          <small>Active trips</small>
+        </div>
       </div>
       <Panel title="Connected institutions">
         {s.tenants.map((t) => (

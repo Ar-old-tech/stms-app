@@ -52,6 +52,8 @@ export class Api {
         ),
       );
       for (const msg of outbox) this.events.emit("message", msg);
+      if (method !== "get" && /^\/admin\/(students|routes|settings)/.test(path))
+        this.events.emit("routing", req.user.tenantId);
       if (method !== "get") this.events.emit("changed", req.user.tenantId);
       res.json(result ?? { ok: true });
     });

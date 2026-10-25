@@ -1,11 +1,228 @@
-import {useEffect,useRef,useState} from 'react';import type {ReactNode} from 'react';import {TriangleAlert,ShieldCheck} from 'lucide-react';import {useStore} from '../store';
-export const money=(n:number)=>`PKR ${n.toLocaleString()}`;
-export function Chip({children,tone}:{children:ReactNode;tone?:string}){return <span className={`chip ${(tone??String(children)).toLowerCase().replaceAll(' ','-')}`}>{children}</span>}
-export function Panel({title,children}:{title:string;children:ReactNode}){return <section className="panel"><h3>{title}</h3>{children}</section>}
-export function Counter({value}:{value:number}){const [shown,setShown]=useState(value);const previous=useRef(value);useEffect(()=>{const from=previous.current;previous.current=value;let frame=0;const start=performance.now(),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;const draw=(now:number)=>{const t=reduced?1:Math.min(1,(now-start)/500);setShown(Math.round(from+(value-from)*t));if(t<1)frame=requestAnimationFrame(draw)};frame=requestAnimationFrame(draw);return()=>cancelAnimationFrame(frame)},[value]);return <>{shown.toLocaleString()}</>}
-export function StateBanner(){const s=useStore();return <><div className="connection-state"><span className={s.connected?'live-dot':''}/>{s.connected?'CONNECTED TO LIVE SERVER':'RECONNECTING · LAST RECEIVED DATA'}{s.pending>0&&' · SAVING…'}</div>{s.error&&<div className="notice error" role="alert">{s.error}<button onClick={()=>void s.refresh()}>Retry</button><button onClick={s.clearError}>Dismiss</button></div>}</>}
-export function Emergency(){const [confirm,setConfirm]=useState(false);const {data:s,act,pending}=useStore();return <div className="emergency"><button className="danger" disabled={!s?.trip} onClick={()=>setConfirm(!confirm)}><TriangleAlert size={16}/> Emergency SOS</button>{confirm&&<div role="alert"><p>Send the live trip location to your administrator and all parents on this trip?</p><button className="danger" disabled={pending>0} onClick={async()=>{if(await act('/sos',{tripId:s!.trip!.id,confirmed:true}))setConfirm(false)}}>Confirm emergency</button><button onClick={()=>setConfirm(false)}>Cancel</button></div>}</div>}
-export function DriverCard(){const {data:s}=useStore();const d=s?.drivers.find(x=>x.id===s.trip?.driverId);return <div className="driver-card"><div className="avatar">{d?.name.split(' ').map(x=>x[0]).join('')??'—'}</div><div><strong>{d?.name??'Driver not assigned'}</strong><small>{d?.reg??'Awaiting assignment'} · Your transport partner</small></div><Chip tone={d?.status==='VERIFIED'?'verified':'pending'}><ShieldCheck size={13}/>{d?.status==='VERIFIED'?'Verified':'Pending'}</Chip></div>}
-export function Inbox(){const {data:s}=useStore();return <div className="inbox" aria-live="polite">{s?.notifications.slice(0,5).map(n=><div className="notice" key={n.id}>{n.text}{n.link&&<a href={n.link} onClick={()=>document.getElementById('live-map')?.scrollIntoView({block:'center'})}>View live location →</a>}</div>)}</div>}
-export function Toast(){const {data:s}=useStore();const n=s?.notifications[0];const [dismissed,setDismissed]=useState('');const key=n?.id;useEffect(()=>{if(!key)return;const t=setTimeout(()=>setDismissed(key),7000);return()=>clearTimeout(t)},[key]);if(!n||dismissed===n.id)return null;return <div className="floating-toast" role="status"><small>STMS · LIVE UPDATE</small>{n.text}<button aria-label="Dismiss notification" onClick={()=>setDismissed(n.id)}>×</button></div>}
-export function DocumentImage({url,label}:{url:string;label:string}){const {session}=useStore();const [src,setSrc]=useState('');useEffect(()=>{let objectUrl='',cancelled=false;void fetch(url,{headers:{Authorization:`Bearer ${session.token}`},cache:'no-store'}).then(async r=>{if(!r.ok)return;objectUrl=URL.createObjectURL(await r.blob());if(!cancelled)setSrc(objectUrl)}).catch(()=>{});return()=>{cancelled=true;if(objectUrl)URL.revokeObjectURL(objectUrl)}},[url,session.token]);return src?<img className="document" src={src} alt={`${label} document`}/>:<div className="document-placeholder">▧ {label}<small>NO DOCUMENT UPLOADED</small></div>}
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { TriangleAlert, ShieldCheck } from "lucide-react";
+import { useStore } from "../store";
+export const money = (n: number) => `PKR ${n.toLocaleString()}`;
+export function Chip({
+  children,
+  tone,
+}: {
+  children: ReactNode;
+  tone?: string;
+}) {
+  return (
+    <span
+      className={`chip ${(tone ?? String(children)).toLowerCase().replaceAll(" ", "-")}`}
+    >
+      {children}
+    </span>
+  );
+}
+export function Panel({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="panel">
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+export function Counter({ value }: { value: number }) {
+  const [shown, setShown] = useState(value);
+  const previous = useRef(value);
+  useEffect(() => {
+    const from = previous.current;
+    previous.current = value;
+    let frame = 0;
+    const start = performance.now(),
+      reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const draw = (now: number) => {
+      const t = reduced ? 1 : Math.min(1, (now - start) / 500);
+      setShown(Math.round(from + (value - from) * t));
+      if (t < 1) frame = requestAnimationFrame(draw);
+    };
+    frame = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return <>{shown.toLocaleString()}</>;
+}
+export function StateBanner() {
+  const s = useStore();
+  return (
+    <>
+      <div className="connection-state">
+        <span className={s.connected ? "live-dot" : ""} />
+        {s.connected
+          ? "CONNECTED TO LIVE SERVER"
+          : "RECONNECTING · LAST RECEIVED DATA"}
+        {s.pending > 0 && " · SAVING…"}
+      </div>
+      {s.error && (
+        <div className="notice error" role="alert">
+          {s.error}
+          <button onClick={() => void s.refresh()}>Retry</button>
+          <button onClick={s.clearError}>Dismiss</button>
+        </div>
+      )}
+    </>
+  );
+}
+export function Emergency() {
+  const [confirm, setConfirm] = useState(false);
+  const { data: s, act, pending } = useStore();
+  return (
+    <div className="emergency">
+      <button
+        className="danger"
+        disabled={!s?.trip}
+        onClick={() => setConfirm(!confirm)}
+      >
+        <TriangleAlert size={16} /> Emergency SOS
+      </button>
+      {confirm && (
+        <div role="alert">
+          <p>
+            Send the live trip location to your administrator and all parents on
+            this trip?
+          </p>
+          <button
+            className="danger"
+            disabled={pending > 0}
+            onClick={async () => {
+              if (await act("/sos", { tripId: s!.trip!.id, confirmed: true }))
+                setConfirm(false);
+            }}
+          >
+            Confirm emergency
+          </button>
+          <button onClick={() => setConfirm(false)}>Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+}
+export function DriverCard() {
+  const { data: s } = useStore();
+  const d = s?.drivers.find((x) => x.id === s.trip?.driverId);
+  return (
+    <div className="driver-card">
+      <div className="avatar">
+        {d?.name
+          .split(" ")
+          .map((x) => x[0])
+          .join("") ?? "—"}
+      </div>
+      <div>
+        <strong>{d?.name ?? "Driver not assigned"}</strong>
+        <small>
+          {d?.reg ?? "Awaiting assignment"} · Your transport partner
+        </small>
+      </div>
+      <Chip tone={d?.status === "VERIFIED" ? "verified" : "pending"}>
+        <ShieldCheck size={13} />
+        {d?.status === "VERIFIED" ? "Verified" : "Pending"}
+      </Chip>
+    </div>
+  );
+}
+export function Inbox() {
+  const { data: s } = useStore();
+  return (
+    <div className="inbox" aria-live="polite">
+      {s?.notifications.slice(0, 5).map((n) => (
+        <div className="notice" key={n.id}>
+          {n.text}
+          {n.link && (
+            <a
+              href={n.link}
+              onClick={() =>
+                document
+                  .getElementById("live-map")
+                  ?.scrollIntoView({ block: "center" })
+              }
+            >
+              View live location →
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+export function Toast() {
+  const { data: s } = useStore();
+  const n = s?.notifications[0];
+  const [dismissed, setDismissed] = useState("");
+  const key = n?.id;
+  useEffect(() => {
+    if (!key) return;
+    if (sessionStorage.getItem("stms-muted") === "false") {
+      try {
+        const audio = new AudioContext(),
+          o = audio.createOscillator(),
+          g = audio.createGain();
+        o.connect(g);
+        g.connect(audio.destination);
+        g.gain.setValueAtTime(0.02, audio.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.15);
+        o.frequency.value = 640;
+        o.start();
+        o.stop(audio.currentTime + 0.15);
+        o.onended = () => void audio.close();
+      } catch {
+        /* Optional sound. */
+      }
+    }
+    const t = setTimeout(() => setDismissed(key), 7000);
+    return () => clearTimeout(t);
+  }, [key]);
+  if (!n || dismissed === n.id) return null;
+  return (
+    <div className="floating-toast" role="status">
+      <small>STMS · LIVE UPDATE</small>
+      {n.text}
+      <button
+        aria-label="Dismiss notification"
+        onClick={() => setDismissed(n.id)}
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+export function DocumentImage({ url, label }: { url: string; label: string }) {
+  const { session } = useStore();
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    if (!url) return;
+    let objectUrl = "",
+      cancelled = false;
+    void fetch(url, {
+      headers: { Authorization: `Bearer ${session.token}` },
+      cache: "no-store",
+    })
+      .then(async (r) => {
+        if (!r.ok) return;
+        objectUrl = URL.createObjectURL(await r.blob());
+        if (!cancelled) setSrc(objectUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url, session.token]);
+  return src ? (
+    <img className="document" src={src} alt={`${label} document`} />
+  ) : (
+    <div className="document-placeholder">
+      ▧ {label}
+      <small>NO DOCUMENT UPLOADED</small>
+    </div>
+  );
+}

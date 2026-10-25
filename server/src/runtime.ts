@@ -116,6 +116,8 @@ export class Runtime {
           if (!["DRIVER", "STUDENT"].includes(user.role))
             throw new HttpError(403, "Administrators use their tenant room");
           await db.run(user, (q) => tripAccess(q, user, tripId));
+          for (const room of socket.rooms)
+            if (room.startsWith("trip:")) await socket.leave(room);
           await socket.join(`trip:${tripId}`);
           reply({ ok: true });
         } catch {
@@ -142,11 +144,24 @@ export class Runtime {
     api.events.on("revoke", (userId: string) =>
       io.in(`user:${userId}`).disconnectSockets(true),
     );
+    api.events.on("routing", (tenant: string) => this.invalidate(tenant));
     api.events.on("changed", (tenant: string | null) => {
       if (tenant) void this.changed(tenant).catch(() => {});
     });
   }
   async changed(tenant: string) {
+    for (const socket of this.io.sockets.sockets.values()) {
+      const user = socket.data.user as Identity;
+      if (user.tenantId !== tenant) continue;
+      for (const room of [...socket.rooms])
+        if (room.startsWith("trip:")) {
+          try {
+            await this.db.run(user, (q) => tripAccess(q, user, room.slice(5)));
+          } catch {
+            await socket.leave(room);
+          }
+        }
+    }
     this.io.to(`tenant:${tenant}`).emit("changed");
     const trips = await this.db.run(
       { tenantId: tenant, role: "ADMIN" },
@@ -252,10 +267,6 @@ export class Runtime {
         (await q.query("SELECT * FROM tenants WHERE id=$1", [user.tenantId]))
           .rows[0],
       );
-      const clock = tenantClock(t);
-      if (String(trip.trip_date).slice(0, 10) !== clock.date) {
-        /* PG DATE values are handled below by the date parser in db.ts. */
-      }
       const speed =
         b.speed ??
         (last
@@ -368,13 +379,22 @@ export class Runtime {
     });
     if (!pending) return;
     this.live.set(`${user.tenantId}:${tripId}`, pending);
+    await this.changed(user.tenantId!);
+    const publicLocation = {
+      tripId,
+      tenantId: user.tenantId,
+      point: pending.point,
+      speed: pending.speed,
+      timestamp: pending.timestamp,
+      simulated: pending.simulated,
+      status: location.status,
+    };
     this.io
       .to(`trip:${tripId}`)
       .to(`tenant:${user.tenantId}`)
-      .emit("location", location);
+      .emit("location", publicLocation);
     for (const m of messages)
       this.io.to(`user:${m.user}`).emit("notification", m.row);
-    await this.changed(user.tenantId!);
   }
   async close() {
     await new Promise<void>((resolve) => this.io.close(() => resolve()));

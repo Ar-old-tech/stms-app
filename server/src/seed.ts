@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import type { Db } from "./db.js";
 import { Database, platform } from "./db.js";
 import { config } from "./config.js";
-import { encrypt } from "./crypto.js";
+import { encrypt, decrypt, cnicFingerprint } from "./crypto.js";
 import { fileURLToPath } from "node:url";
 export const places = [
   ["Committee Chowk", 33.603, 73.068],
@@ -29,11 +29,12 @@ export async function seedTenant(
         [tenant, id, name, role, hash],
       )
     ).rows[0].id as string;
-  if(!keepAdmin) await add(
-    city ? "SCH-02-ADM" : "SCH-01-ADM",
-    city ? "City administrator" : "Sunrise administrator",
-    "ADMIN",
-  );
+  if (!keepAdmin)
+    await add(
+      city ? "SCH-02-ADM" : "SCH-01-ADM",
+      city ? "City administrator" : "Sunrise administrator",
+      "ADMIN",
+    );
   const driver = await add(
     city ? "DRV-6723" : "DRV-4821",
     "Imran Khan",
@@ -50,7 +51,7 @@ export async function seedTenant(
   ];
   for (const [i, id] of drivers.entries()) {
     await q.query(
-      "INSERT INTO driver_verifications(tenant_id,driver_id,cnic_number,license_number,license_expiry,vehicle_reg_number,status) VALUES($1,$2,$3,$4,current_date+($5::int),$6,$7)",
+      "INSERT INTO driver_verifications(tenant_id,driver_id,cnic_number,license_number,license_expiry,vehicle_reg_number,status,cnic_fingerprint) VALUES($1,$2,$3,$4,current_date+($5::int),$6,$7,$8)",
       [
         tenant,
         id,
@@ -65,6 +66,7 @@ export async function seedTenant(
               ? "RWP-2094"
               : "ICT-7720",
         i === 0 ? "VERIFIED" : "PENDING",
+        cnicFingerprint(`DEMO-IDENTITY-${city ? "CITY" : i + 1}`, key),
       ],
     );
   }
@@ -130,6 +132,20 @@ export async function seedTenant(
 }
 export async function seed(db: Database, key: string) {
   await db.run(platform, async (q) => {
+    for (const v of (
+      await q.query(
+        "SELECT id,tenant_id,cnic_number FROM driver_verifications WHERE cnic_fingerprint IS NULL",
+      )
+    ).rows) {
+      await q.query(
+        "UPDATE driver_verifications SET cnic_fingerprint=$1 WHERE tenant_id=$2 AND id=$3",
+        [
+          cnicFingerprint(decrypt(v.cnic_number, key).toString(), key),
+          v.tenant_id,
+          v.id,
+        ],
+      );
+    }
     const hash = await bcrypt.hash("demo123", 12);
     await q.query(
       "INSERT INTO users(custom_id,name,role,password_hash) VALUES('SUP-01','Platform administrator','SUPER_ADMIN',$1) ON CONFLICT(custom_id) DO NOTHING",
