@@ -1,7 +1,11 @@
-import { useStore, uid } from "../store";
-import { Panel, Chip } from "../components/UI";
+import { useState } from "react";
+import { useStore } from "../store";
+import { Panel, Chip, Counter } from "../components/UI";
 export default function SuperAdmin() {
-  const s = useStore();
+  const state = useStore(),
+    s = state.data;
+  const [created, setCreated] = useState("");
+  if (!s) return null;
   return (
     <>
       <div className="view-heading">
@@ -13,12 +17,10 @@ export default function SuperAdmin() {
       </div>
       <div className="kpis">
         <div className="kpi">
-          <strong>{s.tenants.length}</strong>
+          <strong>
+            <Counter value={s.tenants.length} />
+          </strong>
           <small>Institutions</small>
-        </div>
-        <div className="kpi">
-          <strong>{s.students.length}</strong>
-          <small>Students</small>
         </div>
       </div>
       <Panel title="Connected institutions">
@@ -27,7 +29,7 @@ export default function SuperAdmin() {
             <div>
               <strong>{t.name}</strong>
               <small>
-                {t.type} · {t.id}
+                {t.type} · tenant {t.id}
               </small>
             </div>
             <Chip>{t.plan}</Chip>
@@ -36,25 +38,30 @@ export default function SuperAdmin() {
       </Panel>
       <Panel title="Onboard an institution">
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            const f = new FormData(e.currentTarget),
-              id = uid();
-            s.update((d) =>
-              d.tenants.push({
-                id,
-                tenantId: id,
-                name: String(f.get("name")),
-                type: String(f.get("type")),
-                plan: String(f.get("plan")),
-              }),
-            );
-            e.currentTarget.reset();
+            const f = new FormData(e.currentTarget);
+            const r = await state.act("/tenants", {
+              name: String(f.get("name")),
+              email: String(f.get("email")),
+              type: String(f.get("type")),
+              plan: String(f.get("plan")),
+              adminName: String(f.get("adminName")),
+              adminPassword: String(f.get("password")),
+            });
+            if (r)
+              setCreated(
+                `Institution created · administrator login ${r.adminCustomId}`,
+              );
           }}
         >
           <label>
             Institution name
             <input name="name" required />
+          </label>
+          <label>
+            Contact email
+            <input name="email" type="email" required />
           </label>
           <label>
             Institution type
@@ -72,7 +79,24 @@ export default function SuperAdmin() {
               ))}
             </select>
           </label>
-          <button className="primary">Create tenant</button>
+          <label>
+            Administrator name
+            <input name="adminName" required />
+          </label>
+          <label>
+            Administrator initial password
+            <input
+              name="password"
+              type="password"
+              minLength={8}
+              maxLength={72}
+              required
+            />
+          </label>
+          <button className="primary" disabled={state.pending > 0}>
+            Create tenant
+          </button>
+          {created && <div className="notice">{created}</div>}
         </form>
       </Panel>
     </>

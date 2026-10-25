@@ -1,9 +1,9 @@
 import { useState } from "react";
 import confetti from "canvas-confetti";
-import { MapPin, ArrowUpRight } from "lucide-react";
-import { useStore, route } from "../store";
-import { tenantId, places } from "../seed";
-import { cutoffLocked, distance } from "../routing";
+import { ArrowUpRight } from "lucide-react";
+import { useStore } from "../store";
+import { places } from "../seed";
+import { cutoffLocked } from "../routing";
 import { LiveMap } from "../components/LiveMap";
 import {
   Panel,
@@ -13,6 +13,7 @@ import {
   Inbox,
   money,
 } from "../components/UI";
+import { request } from "../api";
 export function celebrate() {
   void confetti({
     particleCount: 100,
@@ -22,70 +23,84 @@ export function celebrate() {
   });
 }
 export default function Parent() {
-  const s = useStore();
-  const student = s.students.find(
-    (x) => x.id === "STU-2026-44" && x.tenantId === tenantId,
-  )!;
-  const fee = s.fees.find(
-    (x) => x.studentId === student.id && x.tenantId === tenantId,
-  )!;
-  const [search, setSearch] = useState("");
-  const [sheet, setSheet] = useState(false);
-  const [gateway, setGateway] = useState("JazzCash");
+  const state = useStore(),
+    s = state.data;
+  const [search, setSearch] = useState(""),
+    [sheet, setSheet] = useState<string | null>(null),
+    [gateway, setGateway] = useState("JazzCash");
+  if (!s?.settings) return null;
+  const student = s.students[0],
+    trip = s.trip;
+  if (!student)
+    return (
+      <Panel title="Your journey">
+        <p>No pickup stop assigned. Contact your administrator.</p>
+      </Panel>
+    );
   const locked = cutoffLocked(s.clock, s.settings.cutoff);
-  const idx = route(s).stops.findIndex((x) => x.id === student.id);
-  const eta =
-    idx < 0
-      ? null
-      : Math.max(
-          1,
-          Math.ceil(
-            route(s)
-              .stops.slice(0, idx + 1)
-              .reduce(
-                (n, x, i, arr) =>
-                  n + distance(i ? arr[i - 1].point : s.trip.point, x.point),
-                0,
-              ) / 600,
-          ),
-        );
-  const setStop = (point: [number, number], name: string) =>
-    s.update((d) => {
-      const a = d.students.find((x) => x.id === student.id)!;
-      a.point = point;
-      a.stop = name;
-      d.attendanceVersion++;
+  const setStop = (point: [number, number], stop: string) =>
+    state.act("/students/me/stop", { point, stop }, "PUT");
+  async function complete(success: boolean) {
+    if (!sheet) return;
+    const f = s!.fees.find((x) => x.id === sheet);
+    if (!f) return;
+    const session = await state.act(`/fees/${f.id}/pay`, { gateway });
+    if (!session) return;
+    const signed = await state.act(`/fees/${f.id}/sandbox-complete`, {
+      session: session.session,
+      success,
     });
+    if (!signed) return;
+    try {
+      const response = await fetch(signed.webhook, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-payment-signature": signed.signature,
+        },
+        body: signed.webhookBody,
+      });
+      if (!response.ok) {
+        const b = await response.json();
+        throw Error(b.error);
+      }
+      await state.refresh();
+      setSheet(null);
+      if (success) celebrate();
+    } catch (e) {
+      state.reportError(e instanceof Error?e.message:'Sandbox callback failed. Please retry.');
+    }
+  }
   return (
     <>
       <div className="view-heading">
         <div>
           <small>PARENT / STUDENT</small>
-          <h2>
-            Good morning, Ayesha<span>☀</span>
-          </h2>
+          <h2>Good morning, {student.name.split(" ")[0]} ☀</h2>
         </div>
         <Chip>Live</Chip>
       </div>
-      <LiveMap parent onPick={(p) => setStop(p, "Custom map pin")} />
+      <LiveMap parent onPick={(p) => void setStop(p, "Custom map pin")} />
       <div className="eta-card">
         <div>
           <small>YOUR VAN IS</small>
           <strong>
-            {s.trip.status === "IDLE"
-              ? "Getting ready"
-              : s.trip.status === "ARRIVED" || s.trip.status === "COMPLETED"
-                ? "At campus"
-                : eta
-                  ? `${eta} min away`
-                  : student.boarded
-                    ? "On the way to campus"
-                    : "Skipping your stop"}
+            {trip?.status === "ARRIVED" || trip?.status === "COMPLETED"
+              ? "At campus"
+              : trip?.status === "IN_PROGRESS"
+                ? student.boarded
+                  ? "On the way to campus"
+                  : !student.going
+                    ? "Skipping your stop"
+                    : trip.eta !== null
+                      ? `${Math.max(1, Math.ceil(trip.eta))} min away`
+                      : "On its route"
+                : "Getting ready"}
           </strong>
         </div>
-        <span className="live-dot" />
         <ArrowUpRight />
       </div>
+      {trip?.simulated && <Chip>SIMULATED GPS</Chip>}
       <DriverCard />
       <Panel title="Today’s journey">
         <div className="row">
@@ -94,46 +109,58 @@ export default function Parent() {
         </div>
         <div className="segmented">
           <button
-            disabled={locked}
             className={student.going ? "selected" : ""}
-            onClick={() => s.attendance(student.id, true)}
+            disabled={locked || state.pending > 0}
+            onClick={() =>
+              void state.act(
+                "/students/me/attendance",
+                { status: "GOING" },
+                "PUT",
+              )
+            }
           >
             ✓ Going
           </button>
           <button
-            disabled={locked}
             className={!student.going ? "selected" : ""}
-            onClick={() => s.attendance(student.id, false)}
+            disabled={locked || state.pending > 0}
+            onClick={() =>
+              void state.act(
+                "/students/me/attendance",
+                { status: "NOT_GOING" },
+                "PUT",
+              )
+            }
           >
             Not Going
           </button>
         </div>
         <small>
           {locked
-            ? `Attendance locked after ${s.settings.cutoff}. Request an admin override.`
-            : `You can change your plans until ${s.settings.cutoff}.`}
+            ? `Attendance locked after ${s.settings.cutoff} ${s.settings.timezone}.`
+            : `Changes allowed until ${s.settings.cutoff} ${s.settings.timezone}.`}
         </small>
         {locked && (
           <button
-            onClick={() => {
-              s.update((d) => {
-                if (
-                  !d.overrides.some((x) => x.id === student.id && !x.resolved)
-                )
-                  d.overrides.push({
-                    id: student.id,
-                    tenantId,
-                    resolved: false,
-                  });
-              });
-              s.notify("Attendance override requested", "admin");
-            }}
+            disabled={state.pending > 0 || student.overrideRequested}
+            onClick={() =>
+              void state.act(
+                "/students/me/attendance",
+                {
+                  status: student.going ? "NOT_GOING" : "GOING",
+                  requestOverride: true,
+                },
+                "PUT",
+              )
+            }
           >
-            Request admin override
+            {student.overrideRequested
+              ? "Override requested"
+              : "Request admin override"}
           </button>
         )}
         <label>
-          <MapPin size={14} /> Pickup stop
+          Pickup stop
           <input
             aria-label="Search pickup address"
             placeholder="Search your neighbourhood"
@@ -151,9 +178,8 @@ export default function Parent() {
               .map((p) => (
                 <button
                   key={p.name}
-                  onClick={() => {
-                    setStop(p.point, p.name);
-                    setSearch("");
+                  onClick={async () => {
+                    if (await setStop(p.point, p.name)) setSearch("");
                   }}
                 >
                   {p.name}
@@ -162,42 +188,37 @@ export default function Parent() {
           </div>
         )}
       </Panel>
-      <Panel title="Transport fee · October 2026">
-        <div className="row">
-          <strong>{money(fee.amount)}</strong>
-          <Chip>{fee.status}</Chip>
-        </div>
-        {fee.status !== "PAID" ? (
-          <button className="primary wide" onClick={() => setSheet(true)}>
-            Pay securely <ArrowUpRight size={16} />
-          </button>
-        ) : (
-          <details open>
-            <summary>View digital receipt</summary>
-            <div className="receipt">
-              <strong>Payment successful ✓</strong>
-              <p>{fee.receipt}</p>
-              <small>
-                {student.name} · {money(fee.amount)} · October 2026
-              </small>
-              <a
-                download={`${fee.receipt}.txt`}
-                href={`data:text/plain;charset=utf-8,${encodeURIComponent(`STMS RECEIPT\n${fee.receipt}\n${student.name}\n${money(fee.amount)}\nPAID`)}`}
-              >
-                Download receipt
-              </a>
-            </div>
-          </details>
-        )}
-      </Panel>
+      {!s.fees.length && (
+        <Panel title="Transport fees">
+          <p>No monthly fee record yet.</p>
+        </Panel>
+      )}
+      {s.fees.map((f) => (
+        <Panel title={`Transport fee · ${f.month.slice(0, 7)}`} key={f.id}>
+          <div className="row">
+            <strong>{money(f.amount)}</strong>
+            <Chip>{f.status}</Chip>
+          </div>
+          {f.status === "PAID" ? (
+            <details open>
+              <summary>View digital receipt</summary>
+              <Receipt id={f.id} />
+            </details>
+          ) : (
+            <button className="primary wide" onClick={() => setSheet(f.id)}>
+              Pay through SANDBOX <ArrowUpRight size={16} />
+            </button>
+          )}
+        </Panel>
+      ))}
       {sheet && (
         <div
           className="sheet"
           role="dialog"
-          aria-label="Simulated payment gateway"
+          aria-label="Sandbox payment gateway"
         >
           <h3>Complete your payment</h3>
-          <small>DEMO GATEWAY · no money is transferred</small>
+          <small>SANDBOX · NO REAL MONEY IS TRANSFERRED</small>
           <select
             aria-label="Payment method"
             value={gateway}
@@ -208,27 +229,50 @@ export default function Parent() {
           </select>
           <button
             className="primary"
-            onClick={() => {
-              s.pay(fee.id, true);
-              celebrate();
-              setSheet(false);
-            }}
+            disabled={state.pending > 0}
+            onClick={() => void complete(true)}
           >
-            Simulate success · {gateway}
+            Sandbox success · {gateway}
           </button>
           <button
-            onClick={() => {
-              s.pay(fee.id, false);
-              setSheet(false);
-            }}
+            disabled={state.pending > 0}
+            onClick={() => void complete(false)}
           >
-            Simulate failure
+            Sandbox failure
           </button>
-          <button onClick={() => setSheet(false)}>Cancel</button>
+          <button onClick={() => setSheet(null)}>Cancel</button>
         </div>
       )}
-      <Inbox role="parent" />
-      <Emergency source="Ayesha Khan" />
+      <Inbox />
+      <Emergency />
     </>
+  );
+}
+export function Receipt({ id }: { id: string }) {
+  const { session } = useStore();
+  const [error, setError] = useState("");
+  async function download() {
+    try {
+      const r = await request<any>(session.token, `/fees/${id}/receipt`);
+      const text = `STMS DIGITAL RECEIPT\n${r.receiptNumber}\n${r.name}\n${money(Number(r.amount))}\n${r.month}\nPaid: ${r.paidAt}\n${r.gatewayRef}`;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      a.download = `${r.receiptNumber}.txt`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Receipt unavailable");
+    }
+  }
+  const { data: s } = useStore(),
+    fee = s?.fees.find((x) => x.id === id);
+  return (
+    <div className="receipt">
+      <strong>Payment successful ✓</strong>
+      <p>{fee?.receipt}</p>
+      <small>{money(fee?.amount ?? 0)} · receipt stored on server</small>
+      <button onClick={() => void download()}>Download receipt</button>
+      {error && <p role="alert">{error}</p>}
+    </div>
   );
 }

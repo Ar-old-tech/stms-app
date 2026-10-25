@@ -1,18 +1,15 @@
-import { useState } from "react";
 import { Navigation, Check, Flag } from "lucide-react";
-import { useStore, route, uid } from "../store";
-import { tenantId } from "../seed";
-import { Panel, Chip, Inbox, Emergency } from "../components/UI";
+import { useStore } from "../store";
 import { LiveMap } from "../components/LiveMap";
+import { Panel, Chip, Emergency, Inbox } from "../components/UI";
+import { Registration } from "../components/Registration";
 export default function Driver() {
-  const s = useStore();
-  const [register, setRegister] = useState(false);
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [applicationId, setApplicationId] = useState<string | null>(null);
-  const d = s.drivers.find(
-    (x) => x.tenantId === tenantId && x.id === s.trip.driverId,
-  )!;
-  const r = route(s);
+  const state = useStore(),
+    s = state.data;
+  if (!s) return null;
+  const d = s.drivers.find((x) => x.id === state.session.user.userId),
+    trip = s.trip,
+    next = s.route.stops[0];
   return (
     <>
       <div className="view-heading">
@@ -24,193 +21,127 @@ export default function Driver() {
       </div>
       <div className="row subheading">
         <span>
-          {d.name} · {d.reg}
+          {d?.name ?? state.session.user.name} · {d?.reg ?? "No vehicle"}
         </span>
-        <Chip>{d.status}</Chip>
+        <Chip>{d?.status ?? "PENDING"}</Chip>
       </div>
       <LiveMap />
-      <div className={`speedometer ${s.trip.speed > 60 ? "over-speed" : ""}`}>
+      <div
+        className={`speedometer ${(trip?.speed ?? 0) > 60 ? "over-speed" : ""}`}
+      >
         <div className="gauge">
-          <strong>{s.trip.speed}</strong>
+          <strong>{Math.round(trip?.speed ?? 0)}</strong>
           <small>KM/H</small>
         </div>
         <div>
-          <small>{s.trip.status.replaceAll("_", " ")}</small>
+          <small>
+            {trip?.status.replaceAll("_", " ") ?? "NO TRIP ASSIGNED"}
+          </small>
           <h3>
-            {s.trip.speed > 60
+            {(trip?.speed ?? 0) > 60
               ? "Slow down. Stay safe."
-              : s.trip.paused
-                ? "You’re at the next stop"
-                : "Every journey matters."}
+              : "Every journey matters."}
           </h3>
-          <small>{r.stops.length} stops remaining · optimized live</small>
+          <small>
+            {s.route.stops.length} stops remaining · {s.route.source}
+          </small>
         </div>
       </div>
-      {s.trip.status === "IDLE" ? (
+      {trip?.simulated && <Chip>SIMULATED GPS · BOT</Chip>}
+      {trip?.status === "IDLE" ? (
         <button
           className="primary wide large"
-          disabled={d.status !== "VERIFIED"}
-          onClick={s.start}
+          disabled={state.pending > 0 || d?.status !== "VERIFIED"}
+          onClick={() => void state.act(`/trips/${trip.id}/start`, {})}
         >
           <Navigation size={18} /> Start morning trip
         </button>
-      ) : s.trip.status === "ARRIVED" ? (
+      ) : trip?.status === "ARRIVED" ? (
         <button
           className="primary wide large"
-          onClick={() => s.visit("Dropped at institution")}
+          disabled={state.pending > 0}
+          onClick={() => void state.act(`/trips/${trip.id}/end`, {})}
         >
           <Flag size={18} /> Dropped at institution
         </button>
-      ) : s.trip.status === "COMPLETED" ? (
-        <div className="notice">All students delivered. Trip complete ✓</div>
-      ) : (
+      ) : trip?.status === "COMPLETED" ? (
+        <div className="notice">
+          Journey complete. Students delivered safely ✓
+        </div>
+      ) : trip?.status === "IN_PROGRESS" ? (
         <Panel title="Up next">
-          <strong>{r.stops[0]?.stop ?? "Sunrise Campus"}</strong>
-          <p>{r.stops[0]?.name ?? "Destination · 150 m arrival geofence"}</p>
-          {r.stops.length > 0 && (
+          <strong>{next?.stop ?? "Institution campus"}</strong>
+          <p>{next?.name ?? "Destination · 150 m geofence"}</p>
+          {next && (
             <div className="actions">
-              <button onClick={() => s.visit("Arrived")}>Arrived</button>
-              <button className="primary" onClick={() => s.visit("Picked up")}>
-                <Check size={16} /> Picked up
-              </button>
-              <button onClick={() => s.visit("No-show")}>No-show</button>
+              {["Arrived", "Picked up", "No-show"].map((status) => (
+                <button
+                  key={status}
+                  className={status === "Picked up" ? "primary" : ""}
+                  disabled={state.pending > 0}
+                  onClick={() =>
+                    void state.act(
+                      `/trips/${trip.id}/stops/${next.id}/status`,
+                      { status },
+                    )
+                  }
+                >
+                  {status === "Picked up" && <Check size={15} />} {status}
+                </button>
+              ))}
             </div>
           )}
         </Panel>
+      ) : (
+        <Panel title="Your journey">
+          <p>
+            No trip assigned. Ask your administrator to assign your verified
+            account to a route.
+          </p>
+        </Panel>
       )}
       <Panel title="Your optimized route">
-        <ol className="stop-list">
-          {r.stops.map((x) => (
-            <li key={x.id}>
+        {trip?.status === "IDLE" ? (
+          <p>
+            Start the trip to receive Going students and their pickup locations.
+          </p>
+        ) : (
+          <ol className="stop-list">
+            {s.route.stops.map((x) => (
+              <li key={x.id}>
+                <span>
+                  {x.stop}
+                  <small>{x.name}</small>
+                </span>
+                <Chip>{x.visit}</Chip>
+              </li>
+            ))}
+            <li>
               <span>
-                {x.stop}
-                <small>{x.name}</small>
+                Institution campus<small>Final destination · fixed</small>
               </span>
-              <Chip>{x.visit}</Chip>
+              <Flag size={15} />
             </li>
-          ))}
-          <li>
-            <span>
-              Sunrise Campus<small>Final destination · fixed</small>
-            </span>
-            <Flag size={16} />
-          </li>
-        </ol>
+          </ol>
+        )}
       </Panel>
-      <Inbox role="driver" />
-      <Emergency source={d.name} />
-      <details open={register}>
-        <summary
-          onClick={(e) => {
-            e.preventDefault();
-            setRegister(!register);
-          }}
+      <Inbox />
+      <Emergency />
+      {d?.status !== "VERIFIED" && (
+        <Panel
+          title={
+            d?.status === "REJECTED"
+              ? "Update and resubmit documents"
+              : "Driver document submission"
+          }
         >
-          Driver registration / resubmission
-        </summary>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            s.update((data) => {
-              const application = {
-                id: applicationId ?? `application-${uid()}`,
-                tenantId,
-                name: String(f.get("name")),
-                cnic: String(f.get("cnic")),
-                license: String(f.get("license")),
-                expiry: String(f.get("expiry")),
-                reg: String(f.get("reg")),
-                status: "PENDING",
-                reason: "",
-                photos,
-              };
-              const existing = data.drivers.findIndex(
-                (x) => x.id === applicationId && x.tenantId === tenantId,
-              );
-              if (existing >= 0) data.drivers[existing] = application;
-              else data.drivers.push(application);
-            });
-            s.notify("Documents submitted · awaiting admin verification");
-            setRegister(false);
-            setApplicationId(null);
-          }}
-        >
-          <label>
-            Full name
-            <input name="name" required />
-          </label>
-          <label>
-            CNIC (synthetic demo data only)
-            <input name="cnic" required />
-          </label>
-          <label>
-            License number
-            <input name="license" required />
-          </label>
-          <label>
-            License expiry
-            <input name="expiry" type="date" required />
-          </label>
-          <label>
-            Vehicle registration
-            <input name="reg" required />
-          </label>
-          {["CNIC", "License", "Vehicle registration"].map((name, i) => (
-            <label key={name}>
-              {name} photo
-              <input
-                aria-label={`${name} photo`}
-                type="file"
-                accept="image/*"
-                required
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = () =>
-                      setPhotos((p) => {
-                        const a = [...p];
-                        a[i] = String(reader.result);
-                        return a;
-                      });
-                    reader.readAsDataURL(file);
-                  }
-                }}
-              />
-              {photos[i] && (
-                <img
-                  className="document"
-                  src={photos[i]}
-                  alt={`${name} preview`}
-                />
-              )}
-            </label>
-          ))}
-          <button className="primary">Submit for verification</button>
-        </form>
-      </details>
-      {s.drivers
-        .filter((x) => x.tenantId === tenantId && x.status !== "VERIFIED")
-        .map((x) => (
-          <div className="notice" key={x.id}>
-            {x.name}: <Chip>{x.status}</Chip>
-            {x.reason && (
-              <>
-                <p>{x.reason}</p>
-                <button
-                  onClick={() => {
-                    setApplicationId(x.id);
-                    setPhotos(x.photos);
-                    setRegister(true);
-                  }}
-                >
-                  Resubmit application
-                </button>
-              </>
-            )}
-          </div>
-        ))}
+          {d?.reason && <div className="notice error">{d.reason}</div>}
+          <Registration
+            driver={d}
+            submit={(f) => state.act("/drivers/register", f)}
+          />
+        </Panel>
+      )}
     </>
   );
 }
