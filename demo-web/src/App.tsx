@@ -1,3 +1,4 @@
+import { SosReceiver } from "./components/Sos";
 import { useEffect, useState, useRef } from "react";
 import { motion, MotionConfig } from "framer-motion";
 import {
@@ -66,6 +67,7 @@ function Frame({
           </div>
           <div className="phone-content" data-role={role}>
             <StateBanner />
+            <SosReceiver />
             {state.data ? (
               role === "Driver" ? (
                 <Driver />
@@ -448,6 +450,8 @@ export default function App() {
                           const r = await driver.getState().act("/sos", {
                             tripId: driver.getState().data!.trip!.id,
                             confirmed: true,
+        type: "BREAKDOWN",
+        message: "Demo emergency: vehicle needs assistance.",
                           });
                           if (!r) throw Error(driver.getState().error);
                         })

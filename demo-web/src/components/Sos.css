@@ -1,0 +1,6 @@
+.sos-dialog-backdrop{position:fixed;inset:0;z-index:3000;background:#020810dc;display:grid;place-items:center;padding:16px}
+.sos-dialog{width:min(520px,100%);max-height:90dvh;overflow:auto;background:#102331;border:2px solid #ff6477;padding:24px;border-radius:18px;box-shadow:0 10px 80px #000}
+.sos-dialog textarea{display:block;width:100%;min-height:90px;margin-top:8px;background:#06131e;color:white;padding:12px;border:1px solid #567;border-radius:8px}
+.sos-types,.sos-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.sos-types [aria-pressed=true]{background:#833041;border-color:#ff6477;color:white}
+.sos-urgent{border:2px solid #ff6477;background:#351622;padding:18px;margin:12px 0;border-radius:12px;overflow-wrap:anywhere}.sos-urgent strong{color:#ff96a4}
+.sos-delivery{display:flex;gap:6px;flex-direction:column;font-size:12px;margin:12px 0}.sos-location{margin:12px 0}.sos-location .leaflet-container{background-color:#101e29;background-image:linear-gradient(#294251 1px,transparent 1px),linear-gradient(90deg,#294251 1px,transparent 1px);background-size:28px 28px}.sos-location .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.7)}

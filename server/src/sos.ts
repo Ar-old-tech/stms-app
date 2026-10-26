@@ -78,11 +78,12 @@ export async function sosAudience(q: Db, user: Identity, studentId: string | nul
 }
 
 export async function visibleSos(q: Db, user: Identity, eventId: string | null = null) {
-  return (await q.query(`SELECT s.*,u.name AS source,u.phone, a.name AS acknowledged_name,
+  return (await q.query(`SELECT s.*,CASE WHEN s.raised_by_role='PARENT' THEN child.name ELSE u.name END AS source,u.phone, a.name AS acknowledged_name,
     json_build_array(s.latitude,s.longitude) AS point, s.tenant_id AS "tenantId",s.trip_id AS "tripId",
     (SELECT COALESCE(json_agg(json_build_object('role',r.role,'channel',r.channel,'status',r.status,'count',r.n)), '[]'::json) FROM
       (SELECT u2.role,d.channel,d.status,count(*) AS n FROM sos_recipients d JOIN users u2 ON u2.tenant_id=d.tenant_id AND u2.id=d.user_id WHERE d.tenant_id=s.tenant_id AND d.sos_id=s.id GROUP BY u2.role,d.channel,d.status) r) AS recipients
     FROM sos_events s JOIN users u ON u.tenant_id=s.tenant_id AND u.id=s.raised_by
+    LEFT JOIN users child ON child.tenant_id=s.tenant_id AND child.id=s.student_id
     LEFT JOIN users a ON a.tenant_id=s.tenant_id AND a.id=s.acknowledged_by
     WHERE s.tenant_id=$1 AND ($3::bigint IS NULL OR s.id=$3)
     AND (s.raised_by=$2 OR EXISTS(SELECT 1 FROM sos_recipients d WHERE d.tenant_id=s.tenant_id AND d.sos_id=s.id AND d.user_id=$2 AND d.channel='IN_APP'))

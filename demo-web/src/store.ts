@@ -65,7 +65,7 @@ export function createSession(session: Session) {
               if (
                 socket.connected &&
                 data.trip &&
-                ["DRIVER", "STUDENT"].includes(session.user.role) &&
+                ["DRIVER", "STUDENT", "PARENT"].includes(session.user.role) &&
                 joinedTrip !== data.trip.id
               ) {
                 joinedTrip = data.trip.id;
@@ -139,6 +139,7 @@ export function createSession(session: Session) {
   );
   socket.on("changed", schedule);
   socket.on("route", schedule);
+  socket.on("sos", schedule);
   socket.on("location", (p) => {
     const data = store.getState().data;
     if (data && data.trip && data.trip.id === p.tripId) {
@@ -204,5 +205,6 @@ export const roleName = (role: Session["user"]["role"]) =>
     ADMIN: "Admin",
     DRIVER: "Driver",
     STUDENT: "Parent",
+    PARENT: "Parent",
     SUPER_ADMIN: "Super Admin",
   })[role];

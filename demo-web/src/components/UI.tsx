@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { TriangleAlert, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useStore } from "../store";
 export const money = (n: number) => `PKR ${n.toLocaleString()}`;
 export function Chip({
@@ -72,40 +72,7 @@ export function StateBanner() {
     </>
   );
 }
-export function Emergency() {
-  const [confirm, setConfirm] = useState(false);
-  const { data: s, act, pending } = useStore();
-  return (
-    <div className="emergency">
-      <button
-        className="danger"
-        disabled={!s?.trip}
-        onClick={() => setConfirm(!confirm)}
-      >
-        <TriangleAlert size={16} /> Emergency SOS
-      </button>
-      {confirm && (
-        <div role="alert">
-          <p>
-            Send the live trip location to your administrator and all parents on
-            this trip?
-          </p>
-          <button
-            className="danger"
-            disabled={pending > 0}
-            onClick={async () => {
-              if (await act("/sos", { tripId: s!.trip!.id, confirmed: true }))
-                setConfirm(false);
-            }}
-          >
-            Confirm emergency
-          </button>
-          <button onClick={() => setConfirm(false)}>Cancel</button>
-        </div>
-      )}
-    </div>
-  );
-}
+export { Emergency } from "./Sos";
 export function DriverCard() {
   const { data: s } = useStore();
   const d = s?.drivers.find((x) => x.id === s.trip?.driverId);

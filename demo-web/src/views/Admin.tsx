@@ -1,3 +1,4 @@
+import { Delivery } from "../components/Sos";
 import { useState } from "react";
 import { useStore } from "../store";
 import {
@@ -554,8 +555,11 @@ export default function Admin({ demoStep = -1 }: { demoStep?: number }) {
                 <div className="notice" key={x.id}>
                   <div className="row">
                     <strong>{x.source}</strong>
-                    <Chip>{x.resolved ? "Resolved" : "SOS"}</Chip>
+                    <Chip>{x.status ?? (x.resolved ? "Resolved" : "SOS")}</Chip>
                   </div>
+                  <p><strong>{x.type}</strong> {x.message}</p>
+                  <p>Acknowledged by: {x.acknowledged_name ?? "Awaiting acknowledgement"}</p>
+                  <Delivery event={x} />
                   <small>
                     Location: {x.point.map((n) => n?.toFixed(4)).join(", ")}
                   </small>

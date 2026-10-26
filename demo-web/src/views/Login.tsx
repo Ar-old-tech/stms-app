@@ -120,7 +120,8 @@ export default function Login({
             <div className="demo-cards">
               {[
                 ["Driver", "DRV-4821"],
-                ["Parent", "STU-2026-44"],
+                ["Student", "STU-2026-44"],
+                ["Parent", "PAR-2026-44"],
                 ["Admin", "SCH-01-ADM"],
                 ["Super Admin", "SUP-01"],
               ].map(([role, id]) => (

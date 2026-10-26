@@ -219,6 +219,8 @@ export async function stepDemo(
       await act(stores.Driver, "/sos", {
         tripId: stores.Driver.getState().data!.trip!.id,
         confirmed: true,
+        type: "BREAKDOWN",
+        message: "Demo emergency: vehicle needs assistance.",
       });
       break;
     }

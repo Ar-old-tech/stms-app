@@ -1,5 +1,5 @@
 export type Point = [number, number];
-export type Role = "ADMIN" | "DRIVER" | "STUDENT" | "SUPER_ADMIN";
+export type Role = "ADMIN" | "DRIVER" | "STUDENT" | "PARENT" | "SUPER_ADMIN";
 export type Session = {
   token: string;
   user: {
@@ -108,6 +108,14 @@ export type Workspace = {
     paidAt: string | null;
   }[];
   sos: {
+    type?: string;
+    message?: string;
+    status?: string;
+    phone?: string | null;
+    raised_by?: string;
+    created_at?: string;
+    acknowledged_name?: string | null;
+    recipients?: {role:string;channel:string;status:string;count:number}[];
     id: string;
     tenantId: string;
     tripId: string;
