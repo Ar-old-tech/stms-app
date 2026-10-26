@@ -66,60 +66,59 @@ export default function Admin({ demoStep = -1 }: { demoStep?: number }) {
           </button>
         ))}
       </nav>
-      {tab === "Overview" && (
-        <>
-          <div className="kpis">
-            {[
-              [
-                "Active trips",
-                s.trips.filter((t) => t.status === "IN_PROGRESS").length,
-              ],
-              ["Going today", s.students.filter((x) => x.going).length],
-              ["Open SOS", s.sos.filter((x) => !x.resolved).length],
-              [
-                "Pending drivers",
-                s.drivers.filter((x) => x.status === "PENDING").length,
-              ],
-            ].map(([label, n]) => (
-              <div className="kpi" key={label}>
-                <strong>
-                  <Counter value={Number(n)} />
-                </strong>
-                <small>{label}</small>
-              </div>
-            ))}
-          </div>
-          <div className="collected">
-            <small>FEES COLLECTED</small>
-            <strong>
-              {money(
-                s.fees
-                  .filter((x) => x.status === "PAID")
-                  .reduce((n, x) => n + x.amount, 0),
-              )}
-            </strong>
-            <span>{s.date.slice(0, 7)} ↗</span>
-          </div>
-          <Panel title="Live fleet">
-            <LiveMap />
-            <small>
-              {s.trips.filter((t) => t.status === "IN_PROGRESS").length} active
-              vehicles · scoped to your institution
-            </small>
-          </Panel>
-          <Panel title="Operations pulse">
-            <p>✓ Attendance synchronised with the server</p>
-            <p>
-              ◷ {s.drivers.filter((x) => x.status === "PENDING").length} driver
-              applications to review
-            </p>
-            <button onClick={() => setTab("Drivers")}>
-              Review verification queue →
-            </button>
-          </Panel>
-          <Inbox />
-        </>
-      )}
+      <div hidden={tab !== "Overview"}>
+        <div className="kpis">
+          {[
+            [
+              "Active trips",
+              s.trips.filter((t) => t.status === "IN_PROGRESS").length,
+            ],
+            ["Going today", s.students.filter((x) => x.going).length],
+            ["Open SOS", s.sos.filter((x) => !x.resolved).length],
+            [
+              "Pending drivers",
+              s.drivers.filter((x) => x.status === "PENDING").length,
+            ],
+          ].map(([label, n]) => (
+            <div className="kpi" key={label}>
+              <strong>
+                <Counter value={Number(n)} />
+              </strong>
+              <small>{label}</small>
+            </div>
+          ))}
+        </div>
+        <div className="collected">
+          <small>FEES COLLECTED</small>
+          <strong>
+            {money(
+              s.fees
+                .filter((x) => x.status === "PAID")
+                .reduce((n, x) => n + x.amount, 0),
+            )}
+          </strong>
+          <span>{s.date.slice(0, 7)} ↗</span>
+        </div>
+        <Panel title="Live fleet">
+          <LiveMap />
+          <small>
+            {s.trips.filter((t) => t.status === "IN_PROGRESS").length} active
+            vehicles · scoped to your institution
+          </small>
+        </Panel>
+        <Panel title="Operations pulse">
+          <p>✓ Attendance synchronised with the server</p>
+          <p>
+            ◷ {s.drivers.filter((x) => x.status === "PENDING").length} driver
+            applications to review
+          </p>
+          <button onClick={() => setTab("Drivers")}>
+            Review verification queue →
+          </button>
+        </Panel>
+        <Inbox />
+      </div>
+
       {tab === "Drivers" && (
         <>
           {s.drivers.map((d) => (
@@ -558,8 +557,13 @@ export default function Admin({ demoStep = -1 }: { demoStep?: number }) {
                     <strong>{x.source}</strong>
                     <Chip>{x.status ?? (x.resolved ? "Resolved" : "SOS")}</Chip>
                   </div>
-                  <p><strong>{x.type}</strong> {x.message}</p>
-                  <p>Acknowledged by: {x.acknowledged_name ?? "Awaiting acknowledgement"}</p>
+                  <p>
+                    <strong>{x.type}</strong> {x.message}
+                  </p>
+                  <p>
+                    Acknowledged by:{" "}
+                    {x.acknowledged_name ?? "Awaiting acknowledgement"}
+                  </p>
                   <Delivery event={x} />
                   <small>
                     Location: {x.point.map((n) => n?.toFixed(4)).join(", ")}

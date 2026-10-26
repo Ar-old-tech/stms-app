@@ -1,85 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import {
-  MapContainer,
-  TileLayer,
-  Polyline,
-  CircleMarker,
-  Tooltip,
-  useMapEvents,
-} from "react-leaflet";
 import { useStore } from "../store";
 import type { Point } from "../model";
-import "leaflet/dist/leaflet.css";
-function Pin({ onPick }: { onPick?: (p: Point) => void }) {
-  useMapEvents({ click: (e) => onPick?.([e.latlng.lat, e.latlng.lng]) });
-  return null;
-}
-function useGlide(target: Point) {
-  const [lat, lng] = target;
-  const [p, setP] = useState(target),
-    current = useRef(target);
-  useEffect(() => {
-    const from = current.current,
-      start = performance.now(),
-      reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let frame = 0;
-    const draw = (now: number) => {
-      const t = reduced ? 1 : Math.min(1, (now - start) / 900),
-        next: Point = [
-          from[0] + (lat - from[0]) * t,
-          from[1] + (lng - from[1]) * t,
-        ];
-      current.current = next;
-      setP(next);
-      if (t < 1) frame = requestAnimationFrame(draw);
-    };
-    frame = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(frame);
-  }, [lat, lng]);
-  return p;
-}
-function Van({
-  point,
-  speed,
-  simulated,
-}: {
-  point: Point;
-  speed: number;
-  simulated: boolean;
-}) {
-  const p = useGlide(point);
-  return (
-    <>
-      <Polyline
-        positions={[p, [p[0] - 0.001, p[1] + 0.0005]]}
-        pathOptions={{ color: "#21dcf5", weight: 12, opacity: 0.2 }}
-      />
-      <CircleMarker
-        center={p}
-        radius={9}
-        pathOptions={{
-          color: "white",
-          fillColor: "#21dcf5",
-          fillOpacity: 1,
-          className: "van-marker",
-        }}
-      >
-        <Tooltip permanent>
-          🚐 {Math.round(speed)} km/h {simulated ? "· SIMULATED" : ""}
-        </Tooltip>
-      </CircleMarker>
-    </>
-  );
-}
+import { MapCanvas } from "./MapCanvas";
 export function LiveMap({
   parent = false,
   onPick,
 }: {
   parent?: boolean;
-  onPick?: (p: Point) => void;
+  onPick?: (point: Point) => void;
 }) {
   const { data: s } = useStore();
-  const [failed, setFailed] = useState(!navigator.onLine);
   if (!s?.settings) return null;
   const trips = parent
     ? s.trip
@@ -91,69 +20,23 @@ export function LiveMap({
         ? [s.trip]
         : [];
   const stops = parent ? s.students : s.route.stops;
+  const fallback = stops.length
+    ? [...stops.map((s) => s.point), s.settings.campus]
+    : [];
   return (
     <div className="map-wrap" id={parent ? "live-map" : undefined}>
-      <MapContainer
-        center={[33.651, 73.043]}
-        zoom={11}
-        scrollWheelZoom={false}
-        zoomControl={false}
-      >
-        <Pin onPick={onPick} />
-        {!failed && (
-          <TileLayer
-            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            eventHandlers={{ tileerror: () => setFailed(true) }}
-          />
+      <MapCanvas
+        stops={stops}
+        line={parent ? [] : s.route.line.length ? s.route.line : fallback}
+        campus={s.settings.campus}
+        arrived={s.trip?.status === "ARRIVED"}
+        vans={trips.filter(
+          (t) => t.status === "IN_PROGRESS" || t.status === "ARRIVED",
         )}
-        {!parent && s.route.line.length > 0 && (
-          <Polyline
-            positions={s.route.line}
-            pathOptions={{
-              color: "#21dcf5",
-              weight: 3,
-              className: "route-line",
-            }}
-          />
-        )}
-        {stops.map((x) => (
-          <CircleMarker
-            key={x.id}
-            center={x.point}
-            radius={6}
-            pathOptions={{ color: "#21dcf5", fillOpacity: 1 }}
-          >
-            <Tooltip>{x.stop}</Tooltip>
-          </CircleMarker>
-        ))}
-        <CircleMarker
-          center={s.settings.campus}
-          radius={12}
-          pathOptions={{
-            color: "#5aefae",
-            className: s.trip?.status === "ARRIVED" ? "campus-pulse" : "",
-          }}
-        >
-          <Tooltip>Institution campus</Tooltip>
-        </CircleMarker>
-        {trips
-          .filter((t) => t.status === "IN_PROGRESS" || t.status === "ARRIVED")
-          .map((t) => (
-            <Van
-              key={t.id}
-              point={t.point}
-              speed={t.speed}
-              simulated={t.simulated}
-            />
-          ))}
-      </MapContainer>
-      <span className="map-label">
-        {failed
-          ? "OFFLINE GRID · last received data"
-          : "LIVE SERVER · ISLAMABAD / RAWALPINDI"}
-      </span>
-      <span className="campus-label">✦ CAMPUS · OSM</span>
+        onPick={onPick}
+      />
+      <span className="map-label">LIVE SERVER ? ISLAMABAD / RAWALPINDI</span>
+      <span className="campus-label">? CAMPUS</span>
     </div>
   );
 }

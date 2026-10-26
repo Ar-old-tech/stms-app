@@ -17,7 +17,7 @@ import { Runtime } from "./runtime.js";
 import { operations, webhook } from "./operations.js";
 import { workspace } from "./workspace.js";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 declare global {
   namespace Express {
     interface Request {
@@ -26,12 +26,26 @@ declare global {
     }
   }
 }
-export function createApp(db: Database, c: Config, providers?: NotificationProvider[]) {
+export function createApp(
+  db: Database,
+  c: Config,
+  providers?: NotificationProvider[],
+) {
+  const tileManifest = new URL(
+    "../../demo-web/dist/tile-provider.json",
+    import.meta.url,
+  );
+  const tileOrigin = existsSync(tileManifest)
+    ? new URL(JSON.parse(readFileSync(tileManifest, "utf8")).origin).origin
+    : "https://tile.openstreetmap.org";
+  if (!tileOrigin.startsWith("https://"))
+    throw new Error("Tile providers must use HTTPS");
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use(
     helmet({
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
@@ -40,6 +54,7 @@ export function createApp(db: Database, c: Config, providers?: NotificationProvi
             "data:",
             "blob:",
             "https://tile.openstreetmap.org",
+            tileOrigin,
           ],
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],

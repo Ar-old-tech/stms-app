@@ -4,6 +4,16 @@ The existing mission-control UI in `demo-web` now uses a real TypeScript/Express
 
 ## Local setup
 
+### Map tiles
+
+The browser and Helmet use `strict-origin-when-cross-origin`, allowing tile requests to send the app origin as their `Referer` without sharing authenticated page paths. The default tile source is `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, capped at zoom 19, with visible © OpenStreetMap contributors attribution even when offline. Leaflet 1.9.4 supports the tile `referrerPolicy` option ([versioned documentation](https://github.com/Leaflet/Leaflet/blob/v1.9.4/src/layer/tile/TileLayer.js)); `crossOrigin` is left at its default because pixel access is not needed.
+
+Copy `demo-web/.env.example` to `demo-web/.env.local` to configure `VITE_TILE_URL` and `VITE_TILE_ATTRIBUTION`. Use an HTTPS tile URL with `{z}`, `{x}`, and `{y}` placeholders, and provide the attribution required by that provider. Vite embeds these public settings at build time: run `npm run build` and restart the server after changing them. The build emits `tile-provider.json` with the selected origin, which Helmet adds to `img-src`, so switching providers requires no source edits or broad CSP relaxation. Deploy this file with the rest of `demo-web/dist`.
+
+OSM's public tile servers are for light use and have no service guarantee. Use a hosted tile provider or self-hosted tiles in production, following the [OSM tile usage policy](https://operations.osmfoundation.org/policies/tiles/). The client respects normal browser caching, uses no bulk download or prefetch feature, and retains one map/tile layer per mounted map across tabs, frame visibility changes, workspace refreshes, and socket updates. Markers, route lines, and animated vans update through Leaflet refs. Three tile errors show the dark-grid tracking fallback without removing the map, overlays, or attribution; browser offline mode also shows that fallback.
+
+Map regressions against the built client: `npm --prefix demo-web run test:e2e -- --config=playwright.map.config.ts`. Tests mock tiles by default. Set `STMS_VERIFY_OSM=1` to include one live visible-viewport check through Chromium DevTools Network events, recording actual response statuses and the outgoing `Referer` header; no provider response is mocked in that check.
+
 Use Node **24.21.0** (pinned in `.node-version`; at least 22.12 is needed by the client toolchain). From the repository root, install and build both packages:
 
 ```powershell

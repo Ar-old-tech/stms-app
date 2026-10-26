@@ -365,6 +365,14 @@ describe("authentication and tenant isolation", () => {
   it("health checks the database", async () => {
     expect((await request(server.app).get("/api/v1/health")).status).toBe(200);
   });
+  it("sends tile-compatible referrer policy while preserving Helmet protections", async () => {
+    const response = await request(server.app).get("/");
+    expect(response.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    expect(response.headers['content-security-policy']).toContain("https://tile.openstreetmap.org");
+    expect(response.headers['content-security-policy']).toContain("script-src 'self'");
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.headers['x-frame-options']).toBe('SAMEORIGIN');
+  });
   it("uses bcrypt hashes and validates JWT claims", async () => {
     const r = await login("DRV-4821");
     expect(r.status).toBe(200);

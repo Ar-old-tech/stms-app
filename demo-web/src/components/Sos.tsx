@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, CircleMarker, TileLayer, useMap } from "react-leaflet";
+import { MapCanvas } from "./MapCanvas";
 import { useStore } from "../store";
 import type { Point, Workspace } from "../model";
 import "./Sos.css";
@@ -199,39 +199,23 @@ export function Emergency() {
     </div>
   );
 }
-function ResizeMap() {
-  const map = useMap();
+function AlertLocation({ event, visible }: { event: Alert; visible: boolean }) {
+  const [opened, setOpened] = useState(visible);
   useEffect(() => {
-    const o = new ResizeObserver(() => map.invalidateSize());
-    o.observe(map.getContainer());
-    map.invalidateSize();
-    return () => o.disconnect();
-  }, [map]);
-  return null;
-}
-function AlertLocation({ event }: { event: Alert }) {
-  const [failed, setFailed] = useState(!navigator.onLine);
+    if (visible) setOpened(true);
+  }, [visible]);
   return (
-    <div className="sos-location">
-      <MapContainer
-        center={event.point}
-        zoom={15}
-        style={{ height: 250, minHeight: 250 }}
-        scrollWheelZoom={false}
-      >
-        <ResizeMap />
-        {!failed && (
-          <TileLayer
-            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            eventHandlers={{ tileerror: () => setFailed(true) }}
-          />
-        )}
-        <CircleMarker center={event.point} radius={10} />
-      </MapContainer>
-      <small>
-        {failed ? "Map tiles unavailable, tracking still works · " : ""}©{" "}
-        <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
-      </small>
+    <div className="sos-location" hidden={!visible}>
+      {opened && (
+        <MapCanvas
+          center={event.point}
+          zoom={15}
+          focus={event.point}
+          stops={[
+            { id: event.id, point: event.point, stop: "Emergency location" },
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -340,8 +324,9 @@ export function SosReceiver() {
                 <strong>{e.status}</strong>
               )}
             </div>
-            {location === e.id && (
+            {
               <AlertLocation
+                visible={location === e.id}
                 event={{
                   ...e,
                   point:
@@ -350,7 +335,7 @@ export function SosReceiver() {
                     )?.point ?? e.point,
                 }}
               />
-            )}
+            }
             <Delivery event={e} />
             <button
               onClick={() => {

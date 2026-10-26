@@ -29,16 +29,19 @@ function Frame({
   role,
   index,
   demoStep = -1,
+  hidden = false,
 }: {
   store: SessionStore;
   role: string;
   index: number;
   demoStep?: number;
+  hidden?: boolean;
 }) {
   const state = useZustand(store);
   return (
     <SessionContext.Provider value={store}>
       <section
+        hidden={hidden}
         className={`role-column ${role === "Admin" && state.data?.sos.some((x) => !x.resolved) ? "sos-pulse" : ""}`}
       >
         <div className="frame-label">
@@ -351,10 +354,11 @@ export default function App() {
                 view === "Presenter" ? "presenter-grid" : "single-role"
               }
             >
-              {(view === "Presenter" ? ["Driver", "Parent", "Admin"] : [view])
+              {["Driver", "Parent", "Admin", "Super Admin"]
                 .filter((role) => stores[role])
                 .map((role, i) => (
                   <Frame
+                    hidden={view !== "Presenter" && view !== role}
                     role={role}
                     store={stores[role]}
                     index={i}
@@ -450,8 +454,9 @@ export default function App() {
                           const r = await driver.getState().act("/sos", {
                             tripId: driver.getState().data!.trip!.id,
                             confirmed: true,
-        type: "BREAKDOWN",
-        message: "Demo emergency: vehicle needs assistance.",
+                            type: "BREAKDOWN",
+                            message:
+                              "Demo emergency: vehicle needs assistance.",
                           });
                           if (!r) throw Error(driver.getState().error);
                         })
