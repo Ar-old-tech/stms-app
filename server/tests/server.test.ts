@@ -1,3 +1,4 @@
+import { sosAudience } from "../src/sos.js";
 import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
 import request from "supertest";
 import jwt from "jsonwebtoken";
@@ -688,4 +689,18 @@ describe("account maintenance and durable demo data", () => {
       ).body,
     ).toHaveLength(8);
   });
+});
+
+describe("SOS recipient policy", () => {
+ it("seeds parent logins and restricts student alerts to the linked family and admin", async () => {
+  const parent = await login("PAR-2026-44");
+  expect(parent.status).toBe(200);
+  expect(parent.body.user.role).toBe("PARENT");
+  await env.db.run(platform, async q => {
+   const u=(await q.query("SELECT * FROM users WHERE custom_id='STU-2026-44'")).rows[0];
+   const audience=await sosAudience(q,{tenantId:u.tenant_id,userId:u.id,role:'STUDENT',version:0},u.id,null,env.c);
+   const ids=(await q.query("SELECT custom_id FROM users WHERE id=ANY($1::bigint[])",[audience.map(x=>x.id)])).rows.map(x=>x.custom_id);
+   expect(ids.sort()).toEqual(['PAR-2026-44','SCH-01-ADM','STU-2026-44'].sort());
+  });
+ });
 });

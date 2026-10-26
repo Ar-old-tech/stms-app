@@ -8,7 +8,7 @@ import { HttpError } from "./errors.js";
 const claims = z.object({
   userId: z.string(),
   tenantId: z.string().nullable(),
-  role: z.enum(["SUPER_ADMIN", "ADMIN", "DRIVER", "STUDENT"]),
+  role: z.enum(["SUPER_ADMIN", "ADMIN", "DRIVER", "STUDENT", "PARENT"]),
   version: z.number().int(),
   exp: z.number(),
 });

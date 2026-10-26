@@ -2,7 +2,7 @@ import pg from "pg";
 import type { PoolClient } from "pg";
 import type { Config } from "./config.js";
 pg.types.setTypeParser(1082, (value: string) => value);
-export type Role = "SUPER_ADMIN" | "ADMIN" | "DRIVER" | "STUDENT";
+export type Role = "SUPER_ADMIN" | "ADMIN" | "DRIVER" | "STUDENT" | "PARENT";
 export type Identity = {
   userId: string;
   tenantId: string | null;

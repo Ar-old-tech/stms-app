@@ -10,6 +10,8 @@ export const configSchema = z.object({
     .enum(["development", "production", "test"])
     .default("development"),
   DEMO_ENABLED: z.enum(["true", "false"]).default("false"),
+  SOS_STUDENT_VISIBLE_TO_ADMIN: z.enum(["true", "false"]).optional(),
+  SOS_STUDENT_VISIBLE_TO_DRIVER: z.enum(["true", "false"]).optional(),
   DATABASE_SSL: z.enum(["true", "false"]).optional(),
 });
 export type Config = z.infer<typeof configSchema>;
