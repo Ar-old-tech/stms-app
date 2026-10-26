@@ -1,0 +1,125 @@
+ROLE
+You are a senior full-stack engineer. The folder demo-web contains a polished
+React + TypeScript demo whose data is simulated in the browser (zustand store
++ sim engine). Convert it into a REAL working web app that I can deploy and
+present on Tuesday: real backend, real database, real authentication, real
+multi-device live GPS. Keep the existing UI and look. Do not ask me questions;
+make assumptions and list them at the end. Ignore the Flutter / Spring Boot /
+Docker rules in AGENTS.md: for this task the stack is below. docs/SRS.md is
+still the source of truth for features, roles, endpoints and the schema.
+
+STACK (fixed)
+- /server: Node 20+, TypeScript, Express, Socket.IO, `pg` (node-postgres),
+  zod validation, bcrypt, jsonwebtoken, helmet, express-rate-limit,
+  multer, vitest + supertest. No ORM; plain SQL migration files in
+  /server/migrations, applied by `npm run migrate`.
+- Database: PostgreSQL from DATABASE_URL (a hosted Neon database). The schema
+  follows SRS Appendix A, except use plain latitude/longitude double columns
+  instead of PostGIS geometry. Add tables for notifications and
+  document blobs. Store uploaded document images in the database (bytea,
+  max 2 MB each) so they survive free-hosting restarts.
+- Live data: an in-memory map of latest position per trip (replaces Redis).
+- Routing: server-side calls to the public OSRM demo server. Use the Trip
+  service with source=first&destination=last&roundtrip=false as in SRS
+  Appendix B (map waypoint_index back to students), a 3-second timeout, and a
+  nearest-neighbour fallback on any failure. Cache per route and date, and
+  recompute only when attendance changes or the trip starts. ETA per next
+  stop from OSRM route, refreshed every 30-60 seconds, with a haversine
+  fallback.
+- Client: keep /demo-web (rename to /client if you like). Replace the zustand
+  simulation with an API client and a Socket.IO client. The server serves
+  the built client in production (one deployable web service, same origin,
+  no CORS problems).
+- Secrets only from environment variables. Provide server/.env.example. Add
+  .env to .gitignore. Never commit secrets.
+
+REAL BEHAVIOUR (all required; IDs refer to docs/SRS.md)
+1. Auth (FR-A1 to A4): POST /api/v1/auth/login with custom id + password,
+   bcrypt-hashed passwords, JWT containing userId, tenantId, role, login rate
+   limiting and lockout. Server-generated non-guessable ids (SRS section 4
+   formats). Password reset by admin.
+2. Tenant isolation: middleware injects tenantId; EVERY query is tenant
+   scoped. Socket.IO connections authenticate with the JWT. Parents may only
+   join their own trip room (trip:{id}); admins only their tenant room; a
+   driver only their own trip. Never a shared all-vehicles topic.
+3. Endpoints under /api/v1 exactly as in SRS section 10.1 (login, driver
+   register, admin driver list/verify, admin students/routes/vehicles CRUD +
+   CSV import, student stop, attendance, trip start/end, stop status, route,
+   sos, fees, payment webhook). Add GET /health.
+4. Driver verification (FR-D1 to D4): real multipart upload of three
+   document photos, Pending -> Verified/Rejected with reason, DRV id issued
+   on approval, Verified badge visible to parents, license-expiry reminders.
+5. Attendance (FR-S2, S3, FR-A): default Going. The cut-off is enforced on
+   the SERVER with a tenant timezone (Asia/Karachi). Add an admin-only
+   "demo time offset" setting, clearly labelled DEMO ONLY in the UI, so I can
+   show before/after cut-off during a presentation. Admin override flow after
+   cut-off.
+6. Dynamic routing (FR-V2): when attendance changes the server recomputes
+   the route and pushes the new ordered stops to the driver over the socket;
+   the absent student's stop disappears and the driver gets a notification.
+7. Live tracking (FR-V1, FR-S4): the driver client uses
+   navigator.geolocation.watchPosition and sends lat, lng, speed, timestamp
+   about every 5 seconds or after ~10 m of movement, buffering points while
+   offline and flushing on reconnect, and requests a screen wake lock while
+   a trip is active. The server stores the latest position, persists sampled
+   points, and broadcasts to that trip's room only.
+8. Proximity alert (FR-S5): the server computes ETA to the next unvisited stop
+   and, once per stop, when ETA <= 5 min (fallback: within ~1 km), creates a
+   notification row, emits it over the socket, and the client also shows a
+   browser Notification (ask permission at login).
+9. Speed (FR-V5): over 60 km/h is logged server-side as a trip event and shown
+   to the admin. Geofence (FR-X2): within 150 m of the campus marks the trip
+   Arrived, server-side.
+10. Emergency (FR-V6, X1): POST /sos stores the event and notifies the tenant
+    admin and all parents on the trip with a live-location link; admin
+    resolves it. Do not claim any police or ambulance integration.
+11. Fees (FR-F1 to F3, S6): monthly Pending records generated by a script
+    and an admin button; sandbox payment gateway: an endpoint that creates a
+    payment session, and a webhook that verifies an HMAC signature before
+    setting Paid and storing the gateway reference; a receipt page with a
+    receipt number; commission % and driver net payout stored; manual
+    mark-as-paid for cash. Label the gateway clearly as SANDBOX in the UI.
+12. Demo helpers kept but honest: Presenter Mode (three frames) now talks to
+    the real backend. Keep a "Simulated driver bot" toggle that sends fake GPS
+    through the SAME driver API when no phone is moving, clearly labelled
+    SIMULATED in the UI. SHOWTIME uses the real API. A "Reset demo data" admin
+    action reseeds the database.
+13. Seed: `npm run seed` creates the data and logins from docs/DEMO_PROMPT.md
+    (password demo123, bcrypt-hashed): tenants, SUP-01, SCH-01-ADM, DRV-4821,
+    STU-2026-44, students, stops, vehicles, routes, pending drivers, fees.
+
+SECURITY AND QUALITY
+- zod-validate every request body; parameterized SQL only; helmet; secure
+  headers; log no secrets, tokens or CNIC numbers; encrypt nothing in the
+  client. Document the data privacy rules from SRS section 13 in the README.
+- Tests (vitest + supertest, against a test schema or transaction): tenant A
+  cannot read tenant B data (REST and socket), role enforcement, token expiry,
+  cut-off logic, route ordering with the campus last, ETA alert fires exactly
+  once per stop, webhook signature rejection, fee net payout. `npm test`
+  must pass.
+- Client: no uncaught errors in the console during the full demo script;
+  loading, empty and error states for every API call; works at 390 px and
+  1920 px; respects prefers-reduced-motion.
+
+DEPLOYMENT (prepare, do not execute)
+- Single web service: root package.json scripts `build` (client then server),
+  `start` (serves API + static client, binds to process.env.PORT),
+  `migrate`, `seed`. Add /api/v1/health. Write DEPLOY.md with exact steps for
+  Render (build command, start command, env vars: DATABASE_URL, JWT_SECRET,
+  WEBHOOK_SECRET, NODE_ENV) and note that free instances sleep, so open the
+  URL a minute before presenting. Geolocation needs HTTPS, so say so.
+
+WORKFLOW
+Plan briefly (file list, dependency versions), then build in milestones,
+running tests and building after each, and committing after each:
+(1) server skeleton, migrations, seed, auth, tenant isolation, tests;
+(2) REST endpoints + CSV import + uploads;
+(3) routing, attendance, trips, ETA, alerts, SOS, fees, sockets;
+(4) client wired to the API and sockets, replacing the simulation;
+(5) driver GPS client, simulated driver bot, Presenter Mode, SHOWTIME on the
+real API, README and DEPLOY.md.
+Do not remove working UI. At the end, walk the 8-step demo script against the
+real backend, report pass/fail per step, list assumptions and anything still
+simulated, and give the exact commands to run locally:
+`cd server`, `copy .env.example .env` (I fill in DATABASE_URL), `npm install`,
+`npm run migrate`, `npm run seed`, `npm run dev`.
