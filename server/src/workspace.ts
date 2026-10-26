@@ -1,3 +1,4 @@
+import { visibleSos } from "./sos.js";
 import { empty } from "./http.js";
 import type { Api } from "./http.js";
 import type { Runtime } from "./runtime.js";
@@ -9,7 +10,7 @@ export function workspace(api: Api, rt: Runtime, c: Config) {
   api.route(
     "get",
     "/workspace",
-    ["ADMIN", "DRIVER", "STUDENT", "SUPER_ADMIN"],
+    ["ADMIN", "DRIVER", "STUDENT", "PARENT", "SUPER_ADMIN"],
     empty,
     async ({ q, user }) => {
       if (user.role === "SUPER_ADMIN")
@@ -60,7 +61,7 @@ export function workspace(api: Api, rt: Runtime, c: Config) {
       const isAdmin = user.role === "ADMIN";
       const trips = (
         await q.query(
-          "SELECT t.*,r.name AS route_name,r.vehicle_id,r.direction FROM trips t JOIN routes r ON r.tenant_id=t.tenant_id AND r.id=t.route_id WHERE t.tenant_id=$1 AND t.trip_date=$2 AND ($3::boolean OR ($4='DRIVER' AND t.driver_id=$5) OR ($4='STUDENT' AND EXISTS(SELECT 1 FROM student_stops s WHERE s.tenant_id=$1 AND s.student_id=$5 AND s.route_id=t.route_id))) ORDER BY CASE t.status WHEN 'IN_PROGRESS' THEN 0 WHEN 'ARRIVED' THEN 1 ELSE 2 END,t.id",
+          "SELECT t.*,r.name AS route_name,r.vehicle_id,r.direction FROM trips t JOIN routes r ON r.tenant_id=t.tenant_id AND r.id=t.route_id WHERE t.tenant_id=$1 AND t.trip_date=$2 AND ($3::boolean OR ($4='DRIVER' AND t.driver_id=$5) OR ($4='PARENT' AND EXISTS(SELECT 1 FROM parent_students p JOIN student_stops ps ON ps.tenant_id=p.tenant_id AND ps.student_id=p.student_id WHERE p.tenant_id=$1 AND p.parent_id=$5 AND ps.route_id=t.route_id)) OR ($4='STUDENT' AND EXISTS(SELECT 1 FROM student_stops s WHERE s.tenant_id=$1 AND s.student_id=$5 AND s.route_id=t.route_id))) ORDER BY CASE t.status WHEN 'IN_PROGRESS' THEN 0 WHEN 'ARRIVED' THEN 1 ELSE 2 END,t.id",
           [tenant, clock.date, isAdmin, user.role, user.userId],
         )
       ).rows;
@@ -71,7 +72,7 @@ export function workspace(api: Api, rt: Runtime, c: Config) {
         ["IN_PROGRESS", "ARRIVED"].includes(selected.status);
       const students = (
         await q.query(
-          "SELECT u.id,u.custom_id,u.name,s.stop_name,s.latitude,s.longitude,s.route_id,COALESCE(a.status,'GOING') AS status,COALESCE(a.visit_status,'Waiting') AS visit,COALESCE(a.boarded,false) AS boarded,COALESCE(a.override_requested,false) AS override_requested,a.requested_status FROM users u JOIN student_stops s ON s.tenant_id=u.tenant_id AND s.student_id=u.id LEFT JOIN daily_attendance a ON a.tenant_id=u.tenant_id AND a.student_id=u.id AND a.trip_date=$2 WHERE u.tenant_id=$1 AND u.role='STUDENT' AND u.active=true AND ($3::boolean OR (u.id=$4 AND $5='STUDENT') OR ($5='DRIVER' AND $6::boolean AND s.route_id=$7 AND COALESCE(a.status,'GOING')='GOING')) ORDER BY u.id",
+          "SELECT u.id,u.custom_id,u.name,s.stop_name,s.latitude,s.longitude,s.route_id,COALESCE(a.status,'GOING') AS status,COALESCE(a.visit_status,'Waiting') AS visit,COALESCE(a.boarded,false) AS boarded,COALESCE(a.override_requested,false) AS override_requested,a.requested_status FROM users u JOIN student_stops s ON s.tenant_id=u.tenant_id AND s.student_id=u.id LEFT JOIN daily_attendance a ON a.tenant_id=u.tenant_id AND a.student_id=u.id AND a.trip_date=$2 WHERE u.tenant_id=$1 AND u.role='STUDENT' AND u.active=true AND ($3::boolean OR (u.id=$4 AND $5='STUDENT') OR ($5='PARENT' AND EXISTS(SELECT 1 FROM parent_students p WHERE p.tenant_id=$1 AND p.parent_id=$4 AND p.student_id=u.id)) OR ($5='DRIVER' AND $6::boolean AND s.route_id=$7 AND COALESCE(a.status,'GOING')='GOING')) ORDER BY u.id",
           [
             tenant,
             clock.date,
@@ -185,21 +186,7 @@ export function workspace(api: Api, rt: Runtime, c: Config) {
               net: Number(x.net_driver_payout ?? 0),
               paidAt: x.paid_at,
             }));
-      const sos = isAdmin
-        ? (
-            await q.query(
-              "SELECT s.*,u.name FROM sos_events s JOIN users u ON u.tenant_id=s.tenant_id AND u.id=s.raised_by WHERE s.tenant_id=$1 ORDER BY s.created_at DESC",
-              [tenant],
-            )
-          ).rows.map((x) => ({
-            id: x.id,
-            tenantId: tenant,
-            tripId: x.trip_id,
-            resolved: x.resolved,
-            source: x.name,
-            point: [x.latitude, x.longitude],
-          }))
-        : [];
+      const sos = await visibleSos(q, user);
       const events = isAdmin
         ? (
             await q.query(

@@ -297,66 +297,6 @@ export function operations(api: Api, rt: Runtime, c: Config) {
     res.json({ ok: true });
   });
   api.route(
-    "post",
-    "/sos",
-    ["STUDENT", "DRIVER"],
-    z
-      .object({
-        tripId: id,
-        confirmed: z.literal(true),
-        point: point.optional(),
-      })
-      .strict(),
-    async (ctx, b) => {
-      const trip = await tripAccess(ctx.q, ctx.user, b.tripId);
-      const p = b.point ??
-        rt.live.get(`${ctx.user.tenantId}:${b.tripId}`)?.point ?? [
-          33.5973, 73.0479,
-        ];
-      const row = (
-        await ctx.q.query(
-          "INSERT INTO sos_events(tenant_id,trip_id,raised_by,latitude,longitude) VALUES($1,$2,$3,$4,$5) RETURNING *",
-          [ctx.user.tenantId, b.tripId, ctx.user.userId, ...p],
-        )
-      ).rows[0];
-      await tell(
-        ctx,
-        { trip: trip.route_id },
-        b.tripId,
-        "SOS",
-        "Emergency alert · open the live trip location",
-        `/#live-trip=${b.tripId}`,
-        `sos:${row.id}`,
-      );
-      return row;
-    },
-  );
-  api.route(
-    "patch",
-    "/admin/sos/:id",
-    ["ADMIN"],
-    z.object({ resolved: z.literal(true) }).strict(),
-    async (ctx) => {
-      const row = requireValue(
-        (
-          await ctx.q.query(
-            "UPDATE sos_events SET resolved=true WHERE tenant_id=$1 AND id=$2 RETURNING *",
-            [ctx.user.tenantId, ctx.params.id],
-          )
-        ).rows[0],
-      );
-      const trip = await tripAccess(ctx.q, ctx.user, row.trip_id);
-      await tell(
-        ctx,
-        { trip: trip.route_id },
-        row.trip_id,
-        "SOS_RESOLVED",
-        "Administrator resolved the emergency alert",
-      );
-      return row;
-    },
-  );
-  api.route(
     "get",
     "/fees/me",
     ["STUDENT"],

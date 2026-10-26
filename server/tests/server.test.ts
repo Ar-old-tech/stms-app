@@ -297,7 +297,7 @@ describe("real trips, safety, payments and sockets", () => {
     const sos = await request(server.app)
       .post("/api/v1/sos")
       .auth(studentToken, { type: "bearer" })
-      .send({ tripId, confirmed: true });
+      .send({ tripId, type: "MEDICAL", confirmed: true });
     expect(sos.status).toBe(200);
     expect(
       (

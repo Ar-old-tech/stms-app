@@ -1,3 +1,4 @@
+import { sosRoutes } from "./sos.js";
 import express from "express";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
@@ -133,6 +134,7 @@ export function createApp(db: Database, c: Config) {
   });
   management(api, c);
   operations(api, runtime, c);
+  sosRoutes(api, runtime, c);
   workspace(api, runtime, c);
   return {
     app,

@@ -55,6 +55,7 @@ export async function tripAccess(q: Db, user: Identity, tripId: string) {
     ).rowCount
   )
     return trip;
+  if (user.role === 'PARENT' && (await q.query('SELECT 1 FROM parent_students p JOIN student_stops s ON s.tenant_id=p.tenant_id AND s.student_id=p.student_id WHERE p.tenant_id=$1 AND p.parent_id=$2 AND s.route_id=$3', [user.tenantId,user.userId,trip.route_id])).rowCount) return trip;
   throw new HttpError(403, "This trip is not assigned to you");
 }
 export class Runtime {
@@ -113,7 +114,7 @@ export class Runtime {
         const reply = typeof ack === "function" ? ack : () => {};
         try {
           const tripId = id.parse(raw);
-          if (!["DRIVER", "STUDENT"].includes(user.role))
+          if (!["DRIVER", "STUDENT", "PARENT"].includes(user.role))
             throw new HttpError(403, "Administrators use their tenant room");
           await db.run(user, (q) => tripAccess(q, user, tripId));
           for (const room of socket.rooms)
