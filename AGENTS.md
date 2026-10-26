@@ -31,10 +31,10 @@ disagree, stop and ask; never silently deviate.
   (e) summarize what changed and what is still unverified.
 - Keep changes small and scoped to the phase I name. Do not refactor
   unrelated code.
-- If something is ambiguous (see SRS section 17.2 open decisions), ask
+- If something is ambiguous (see SRS section 17.2 open decisions), ask first
   instead of choosing.
 
 ## Commands
 - Backend: `cd backend; ./mvnw verify`
 - Infra: `docker compose -f infra/docker-compose.yml up -d`
-- Mobile: `cd mobile; flutter analyze; flutter test`
+- Mobile: `cd mobile; flutter analyze; flutter test`  
