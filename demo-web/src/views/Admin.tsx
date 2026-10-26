@@ -1,3 +1,4 @@
+import { NotifySettings } from "../components/NotifySettings";
 import { Delivery } from "../components/Sos";
 import { useState } from "react";
 import { useStore } from "../store";
@@ -643,6 +644,7 @@ export default function Admin({ demoStep = -1 }: { demoStep?: number }) {
       )}
       {tab === "Settings" && (
         <Panel title="Institution settings">
+          <NotifySettings />
           <form
             key={JSON.stringify(settings)}
             onSubmit={async (e) => {

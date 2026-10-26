@@ -59,6 +59,15 @@ export function workspace(api: Api, rt: Runtime, c: Config) {
       const tenant = user.tenantId!,
         { t, clock } = await ensureDay(q, tenant);
       const isAdmin = user.role === "ADMIN";
+      const sosChildren =
+        user.role === "PARENT"
+          ? (
+              await q.query(
+                "SELECT u.id,u.name FROM parent_students p JOIN users u ON u.tenant_id=p.tenant_id AND u.id=p.student_id WHERE p.tenant_id=$1 AND p.parent_id=$2 AND u.role='STUDENT' AND u.active=true ORDER BY u.id",
+                [tenant, user.userId],
+              )
+            ).rows
+          : [];
       const trips = (
         await q.query(
           "SELECT t.*,r.name AS route_name,r.vehicle_id,r.direction FROM trips t JOIN routes r ON r.tenant_id=t.tenant_id AND r.id=t.route_id WHERE t.tenant_id=$1 AND t.trip_date=$2 AND ($3::boolean OR ($4='DRIVER' AND t.driver_id=$5) OR ($4='PARENT' AND EXISTS(SELECT 1 FROM parent_students p JOIN student_stops ps ON ps.tenant_id=p.tenant_id AND ps.student_id=p.student_id WHERE p.tenant_id=$1 AND p.parent_id=$5 AND ps.route_id=t.route_id)) OR ($4='STUDENT' AND EXISTS(SELECT 1 FROM student_stops s WHERE s.tenant_id=$1 AND s.student_id=$5 AND s.route_id=t.route_id))) ORDER BY CASE t.status WHEN 'IN_PROGRESS' THEN 0 WHEN 'ARRIVED' THEN 1 ELSE 2 END,t.id",
@@ -260,6 +269,7 @@ export function workspace(api: Api, rt: Runtime, c: Config) {
         session: user,
         tenants: [{ id: tenant, name: t.name, type: t.type, plan: t.plan }],
         students,
+        sosChildren,
         drivers,
         vehicles,
         routes,

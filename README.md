@@ -37,10 +37,30 @@ All seeded passwords are **demo123**, stored as bcrypt hashes (cost 12). Seed da
 | `SCH-01-ADM`                              | Sunrise Coaching Center administrator                                 |
 | `DRV-4821`                                | Imran Khan, verified, ICT-1182                                        |
 | `STU-2026-44`                             | Ayesha Khan, parent/student                                           |
+| `PAR-2026-44`                             | Parent linked to Ayesha (`STU-2026-44`)                                |
+| `PAR-2026-51`                             | Parent linked to Hassan (`STU-2026-51`)                               |
 | `PENDING-USMAN`, `PENDING-BILAL`          | Pending driver applications                                           |
 | `SCH-02-ADM`, `DRV-6723`, `STU-2026-CITY` | Independent City College accounts, useful for tenant-isolation checks |
 
 There are eight Sunrise students/stops, vehicles/routes, mixed monthly fee states, past safety events and two pending drivers. One license expires within 30 days of seeding. CNICs, license values and uploaded seed-document placeholders are synthetic. No seed document images are invented: the review UI displays “No document uploaded” until real uploads are submitted.
+
+## Emergency alerts
+
+Apply migrations and run the seed before starting the upgraded service. Migrations `003` and `004` add parent relationships, structured SOS events, and delivery logs; the existing `users.phone` column is validated as E.164. Reseeding adds both parent logins without replacing existing accounts. Parent phone numbers use fictional US 202-555-01xx numbers: replace them with consenting test recipients before enabling external messaging. All demo passwords remain `demo123`.
+
+Driver alerts reach tenant admins and accounts of students and linked parents assigned to the route for that trip. Student and parent alerts concern only that child and reach the child, linked parents, and admins by default. The sender also sees their own receipt. `SOS_STUDENT_VISIBLE_TO_ADMIN=false` removes admins from new child-alert recipients; `SOS_STUDENT_VISIBLE_TO_DRIVER=true` explicitly adds the assigned driver when a trip is supplied. Recipient membership is a snapshot at creation. REST list/detail, workspace data, acknowledgements, and private user socket messages use that same snapshot. Another family or tenant receives 404 for the detail URL. No SOS payload is sent to a trip or tenant room.
+
+The sender reviews the emergency type, optional message (required for Other), and current device location or last known trip position, then confirms sending. The server limits each sender to three events per ten real minutes. Parent senders must select one of their linked children. If no location is known, sending is rejected rather than attaching an invented position. The urgent banner persists until acknowledged; admins can resolve it in Alerts. Call/WhatsApp actions appear only with a sender phone. Browser notifications require permission, and sound requires unmuting and browser audio permission.
+
+`IN_APP DELIVERED` means stored in the recipient's authenticated inbox, including offline recipients. `SEEN` means the receiver UI reported displaying it. `ACKNOWLEDGED` records an explicit response. External `ACCEPTED` means the provider accepted the API request; it does **not** confirm handset delivery. SMS/WhatsApp failures do not roll back or reject the SOS. Each configured provider is attempted twice at most per delivery, with a five-second timeout per attempt; errors are sanitized and logged with masked phone numbers. Pending external deliveries are scanned every 30 seconds after restart. A process crash during a claimed (`PROCESSING`) delivery leaves an unknown outcome that requires operator investigation; automatic resend could duplicate an emergency message. Provider callbacks and handset receipt verification are not implemented.
+
+### Optional Twilio sandbox setup
+
+External channels are disabled by default. Configure only the server environment using the commented entries in `server/.env.example`: `SMS_ENABLED=true`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and the sender for each desired channel (`TWILIO_SMS_FROM` for SMS, `TWILIO_WHATSAPP_FROM=whatsapp:+...` for WhatsApp). The shared enable flag gates both channels; an absent sender keeps that channel unconfigured. Set `APP_URL` to the deployed app origin. Links contain only an event ID and require normal login and recipient authorization; there are no public location tokens. Admin Settings shows channel configuration and can send a test only to the signed-in admin's configured phone. There is no UI for credentials or arbitrary destination numbers.
+
+For WhatsApp testing, activate the sandbox in Twilio's legacy console and have every consenting recipient send `join <sandbox code>` to its number. The sandbox is for testing, only joined users can receive messages, and membership expires after three days. Free-form emergency text requires a customer-service window opened by a user message within the preceding 24 hours. This implementation sends free-form text and does not create approved templates; messages outside that window may fail. Trial SMS destinations must be verified with Twilio. Twilio is an optional paid provider, not a free delivery guarantee; the app's in-app channel remains independent of it. See [Twilio sandbox setup and limits](https://www.twilio.com/docs/whatsapp/sandbox) and [the REST Messages API](https://www.twilio.com/docs/messaging/api/message-resource).
+
+There is no police, ambulance, dispatch, or other emergency-service integration.
 
 `npm run seed` is idempotent and preserves existing tenant data. The in-app **Reset demo data** action replaces only the seeded Sunrise institution’s operational data, retains the signed-in administrator and leaves City College untouched. It is unavailable outside the seeded institution or with demo helpers disabled. SHOWTIME resets that same seeded dataset before its scripted run. Do not mix real people’s records into the seeded demo institution.
 

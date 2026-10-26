@@ -1,0 +1,2 @@
+ALTER TABLE sos_recipients DROP CONSTRAINT sos_recipients_status_check;
+ALTER TABLE sos_recipients ADD CHECK(status IN('PENDING','PROCESSING','ACCEPTED','DELIVERED','SEEN','ACKNOWLEDGED','FAILED','NOT_CONFIGURED'));

@@ -51,6 +51,7 @@ export class Api {
           body,
         ),
       );
+      if (method === 'post' && path === '/sos') this.events.emit('sos-dispatch', req.user, (result as {id:string}).id);
       for (const msg of outbox) this.events.emit("message", msg);
       if (method !== "get" && /^\/admin\/(students|routes|settings)/.test(path))
         this.events.emit("routing", req.user.tenantId);

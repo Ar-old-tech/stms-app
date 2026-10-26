@@ -36,6 +36,7 @@ export default function Parent() {
     return (
       <Panel title="Your journey">
         <p>No pickup stop assigned. Contact your administrator.</p>
+        <Emergency />
       </Panel>
     );
   const locked = cutoffLocked(s.clock, s.settings.cutoff);

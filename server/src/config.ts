@@ -12,6 +12,12 @@ export const configSchema = z.object({
   DEMO_ENABLED: z.enum(["true", "false"]).default("false"),
   SOS_STUDENT_VISIBLE_TO_ADMIN: z.enum(["true", "false"]).optional(),
   SOS_STUDENT_VISIBLE_TO_DRIVER: z.enum(["true", "false"]).optional(),
+  SMS_ENABLED: z.enum(["true", "false"]).optional(),
+  TWILIO_ACCOUNT_SID: z.string().regex(/^AC[a-fA-F0-9]{32}$/).optional(),
+  TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
+  TWILIO_SMS_FROM: z.string().regex(/^\+[1-9]\d{7,14}$/).optional(),
+  TWILIO_WHATSAPP_FROM: z.string().regex(/^whatsapp:\+[1-9]\d{7,14}$/).optional(),
+  APP_URL: z.string().url().optional(),
   DATABASE_SSL: z.enum(["true", "false"]).optional(),
 });
 export type Config = z.infer<typeof configSchema>;

@@ -1,3 +1,5 @@
+import { Notifier } from "./notify/index.js";
+import type { NotificationProvider } from "./notify/provider.js";
 import { sosRoutes } from "./sos.js";
 import express from "express";
 import helmet from "helmet";
@@ -24,7 +26,7 @@ declare global {
     }
   }
 }
-export function createApp(db: Database, c: Config) {
+export function createApp(db: Database, c: Config, providers?: NotificationProvider[]) {
   const app = express();
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
@@ -135,11 +137,13 @@ export function createApp(db: Database, c: Config) {
   management(api, c);
   operations(api, runtime, c);
   sosRoutes(api, runtime, c);
+  const notifier = new Notifier(db, api, c, http, providers);
   workspace(api, runtime, c);
   return {
     app,
     api,
     runtime,
+    notifier,
     http,
     finish() {
       const client = fileURLToPath(

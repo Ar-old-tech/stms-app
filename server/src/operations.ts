@@ -461,6 +461,8 @@ export function operations(api: Api, rt: Runtime, c: Config) {
         "UPDATE driver_verifications SET reviewed_by=NULL WHERE tenant_id=$1",
         [user.tenantId],
       );
+      // Standalone student/parent alerts have no trip to cascade through.
+      await q.query("DELETE FROM sos_events WHERE tenant_id=$1", [user.tenantId]);
       await q.query("DELETE FROM routes WHERE tenant_id=$1", [user.tenantId]);
       await q.query("DELETE FROM notifications WHERE tenant_id=$1", [
         user.tenantId,

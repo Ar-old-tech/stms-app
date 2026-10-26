@@ -127,17 +127,33 @@ export async function seedTenant(
   );
   if (!city) await seedParents(q, hash);
   await q.query(
-    "INSERT INTO sos_events(tenant_id,trip_id,raised_by,latitude,longitude,resolved) VALUES($1,$2,$3,33.5973,73.0479,true)",
+    "INSERT INTO sos_events(tenant_id,trip_id,raised_by,latitude,longitude,resolved,status,created_at) VALUES($1,$2,$3,33.5973,73.0479,true,'RESOLVED',now()-interval '1 day')",
     [tenant, trip, driver],
   );
 }
 async function seedParents(q: Db, hash: string) {
-    for (const [parent, child, phone] of [["PAR-2026-44", "STU-2026-44", "+12025550144"], ["PAR-2026-51", "STU-2026-51", "+12025550151"]]) {
-      const student = (await q.query("SELECT id,tenant_id FROM users WHERE custom_id=$1 AND role='STUDENT'", [child])).rows[0];
-      if (!student) continue;
-      const p = (await q.query("INSERT INTO users(tenant_id,custom_id,name,role,password_hash,phone) VALUES($1,$2,$3,'PARENT',$4,$5) ON CONFLICT(custom_id) DO UPDATE SET phone=EXCLUDED.phone RETURNING id", [student.tenant_id,parent,'Demo parent '+child,hash,phone])).rows[0];
-      await q.query("INSERT INTO parent_students(tenant_id,parent_id,student_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING", [student.tenant_id,p.id,student.id]);
-    }
+  for (const [parent, child, phone] of [
+    ["PAR-2026-44", "STU-2026-44", "+12025550144"],
+    ["PAR-2026-51", "STU-2026-51", "+12025550151"],
+  ]) {
+    const student = (
+      await q.query(
+        "SELECT id,tenant_id FROM users WHERE custom_id=$1 AND role='STUDENT'",
+        [child],
+      )
+    ).rows[0];
+    if (!student) continue;
+    const p = (
+      await q.query(
+        "INSERT INTO users(tenant_id,custom_id,name,role,password_hash,phone) VALUES($1,$2,$3,'PARENT',$4,$5) ON CONFLICT(custom_id) DO UPDATE SET phone=EXCLUDED.phone RETURNING id",
+        [student.tenant_id, parent, "Demo parent " + child, hash, phone],
+      )
+    ).rows[0];
+    await q.query(
+      "INSERT INTO parent_students(tenant_id,parent_id,student_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+      [student.tenant_id, p.id, student.id],
+    );
+  }
 }
 export async function seed(db: Database, key: string) {
   await db.run(platform, async (q) => {

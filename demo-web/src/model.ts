@@ -107,6 +107,7 @@ export type Workspace = {
     net: number;
     paidAt: string | null;
   }[];
+  sosChildren?: { id: string; name: string }[];
   sos: {
     type?: string;
     message?: string;
@@ -115,7 +116,12 @@ export type Workspace = {
     raised_by?: string;
     created_at?: string;
     acknowledged_name?: string | null;
-    recipients?: {role:string;channel:string;status:string;count:number}[];
+    recipients?: {
+      role: string;
+      channel: string;
+      status: string;
+      count: number;
+    }[];
     id: string;
     tenantId: string;
     tripId: string;

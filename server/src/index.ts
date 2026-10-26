@@ -15,6 +15,7 @@ for (const signal of ["SIGTERM", "SIGINT"])
     closing = true;
     void server.runtime
       .close()
+      .then(() => server.notifier.settled())
       .then(() => db.close())
       .then(() => process.exit(0));
   });

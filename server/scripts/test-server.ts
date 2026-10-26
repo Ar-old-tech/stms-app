@@ -11,6 +11,7 @@ async function close() {
   if (closing) return;
   closing = true;
   await server.runtime.close();
+  await server.notifier.settled();
   await env.close();
   process.exit(0);
 }
