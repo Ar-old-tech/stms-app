@@ -5,6 +5,8 @@ import type { Api } from "./http.js";
 import { empty, id, name, point } from "./http.js";
 import type { Config } from "./config.js";
 import { HttpError, requireValue } from "./errors.js";
+import { ensureDailyTrips } from "./trips.js";
+import { tenantClock } from "./routing.js";
 import {
   decrypt,
   encrypt,
@@ -384,7 +386,7 @@ export function management(api: Api, c: Config) {
       schema,
       async ({ q, user }, b) => {
         if (kind === "routes") await validDriver(q, user.tenantId!, b.driverId);
-        return (
+        const result = (
           await q.query(
             kind === "vehicles"
               ? "INSERT INTO vehicles(tenant_id,reg_number,capacity) VALUES($1,$2,$3) RETURNING *"
@@ -401,6 +403,9 @@ export function management(api: Api, c: Config) {
                 ],
           )
         ).rows[0];
+        if (kind === "routes")
+          await ensureDailyTrips(q, user.tenantId!, result.id);
+        return result;
       },
     );
     api.route(
@@ -411,6 +416,14 @@ export function management(api: Api, c: Config) {
       async ({ q, user, params }, b) => {
         if (kind === "routes") {
           await validDriver(q, user.tenantId!, b.driverId);
+          requireValue(
+            (
+              await q.query(
+                "SELECT id FROM routes WHERE tenant_id=$1 AND id=$2 FOR UPDATE",
+                [user.tenantId, params.id],
+              )
+            ).rows[0],
+          );
           const active = (
             await q.query(
               "SELECT id FROM trips WHERE tenant_id=$1 AND route_id=$2 AND status IN('IN_PROGRESS','ARRIVED')",
@@ -422,8 +435,27 @@ export function management(api: Api, c: Config) {
               409,
               "End the active trip before changing its assignment",
             );
+          const tenant = requireValue(
+            (
+              await q.query(
+                "SELECT timezone,demo_offset_minutes FROM tenants WHERE id=$1",
+                [user.tenantId],
+              )
+            ).rows[0],
+          );
+          const completed = (
+            await q.query(
+              "SELECT id FROM trips WHERE tenant_id=$1 AND route_id=$2 AND trip_date=$3 AND status='COMPLETED' AND driver_id<>$4",
+              [user.tenantId, params.id, tenantClock(tenant).date, b.driverId],
+            )
+          ).rowCount;
+          if (completed)
+            throw new HttpError(
+              409,
+              "Today's trip is completed. Assign a different route or change the driver tomorrow.",
+            );
         }
-        return requireValue(
+        const result = requireValue(
           (
             await q.query(
               kind === "vehicles"
@@ -443,6 +475,9 @@ export function management(api: Api, c: Config) {
             )
           ).rows[0],
         );
+        if (kind === "routes")
+          await ensureDailyTrips(q, user.tenantId!, result.id);
+        return result;
       },
     );
     api.route(

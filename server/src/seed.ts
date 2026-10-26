@@ -4,6 +4,7 @@ import { Database, platform } from "./db.js";
 import { config } from "./config.js";
 import { encrypt, decrypt, cnicFingerprint } from "./crypto.js";
 import { fileURLToPath } from "node:url";
+import { ensureDailyTrips } from "./trips.js";
 export const places = [
   ["Committee Chowk", 33.603, 73.068],
   ["Satellite Town", 33.636, 73.065],
@@ -115,10 +116,11 @@ export async function seedTenant(
       ],
     );
   }
+  const { clock } = await ensureDailyTrips(q, tenant);
   const trip = (
     await q.query(
-      "INSERT INTO trips(tenant_id,route_id,driver_id,trip_date) VALUES($1,$2,$3,(now() AT TIME ZONE 'Asia/Karachi')::date) RETURNING id",
-      [tenant, route, driver],
+      "SELECT id FROM trips WHERE tenant_id=$1 AND route_id=$2 AND trip_date=$3",
+      [tenant, route, clock.date],
     )
   ).rows[0].id;
   await q.query(
@@ -181,14 +183,17 @@ export async function seed(db: Database, key: string) {
       "City College",
     ].entries()) {
       const email = i ? "city@example.test" : "sunrise@example.test";
-      if (
-        (
-          await q.query("SELECT id FROM tenants WHERE contact_email=$1", [
-            email,
-          ])
-        ).rowCount
-      )
+      const existing = (
+        await q.query(
+          "SELECT id FROM tenants WHERE contact_email=$1 FOR NO KEY UPDATE",
+          [email],
+        )
+      ).rows[0];
+      if (existing) {
+        await repairSeededAssignment(q, existing.id, !!i);
+        await ensureDailyTrips(q, existing.id);
         continue;
+      }
       const t = (
         await q.query(
           "INSERT INTO tenants(name,type,contact_email,plan) VALUES($1,$2,$3,$4) RETURNING id",
@@ -204,6 +209,44 @@ export async function seed(db: Database, key: string) {
     }
     await seedParents(q, hash);
   });
+}
+async function repairSeededAssignment(q: Db, tenant: string, city: boolean) {
+  const driver = (
+    await q.query(
+      "SELECT u.id FROM users u JOIN driver_verifications v ON v.tenant_id=u.tenant_id AND v.driver_id=u.id WHERE u.tenant_id=$1 AND u.custom_id=$2 AND u.role='DRIVER' AND u.active=true AND v.status='VERIFIED'",
+      [tenant, city ? "DRV-6723" : "DRV-4821"],
+    )
+  ).rows[0];
+  if (!driver) return;
+  const assigned = (
+    await q.query(
+      "SELECT id,vehicle_id FROM routes WHERE tenant_id=$1 AND driver_id=$2 ORDER BY id LIMIT 1",
+      [tenant, driver.id],
+    )
+  ).rows[0];
+  if (assigned?.vehicle_id) return;
+  const vehicle = (
+    await q.query(
+      "INSERT INTO vehicles(tenant_id,reg_number,capacity) VALUES($1,$2,12) ON CONFLICT(reg_number) DO UPDATE SET reg_number=EXCLUDED.reg_number WHERE vehicles.tenant_id=EXCLUDED.tenant_id RETURNING id",
+      [tenant, city ? "CITY-1122" : "ICT-1182"],
+    )
+  ).rows[0];
+  if (!vehicle) throw new Error("Seed vehicle belongs to another tenant");
+  if (assigned)
+    await q.query(
+      "UPDATE routes SET vehicle_id=$3 WHERE tenant_id=$1 AND id=$2",
+      [tenant, assigned.id, vehicle.id],
+    );
+  else
+    await q.query(
+      "INSERT INTO routes(tenant_id,name,driver_id,vehicle_id) VALUES($1,$2,$3,$4)",
+      [
+        tenant,
+        `Twin Cities Morning (${city ? "DRV-6723" : "DRV-4821"})`,
+        driver.id,
+        vehicle.id,
+      ],
+    );
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const c = config(),

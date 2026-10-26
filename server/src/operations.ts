@@ -3,7 +3,7 @@ import type { Api, Context } from "./http.js";
 import { empty, id, point } from "./http.js";
 import type { Runtime } from "./runtime.js";
 import { notify, tripAccess, telemetrySchema } from "./runtime.js";
-import { tenantClock, cutoffLocked, splitFee } from "./routing.js";
+import { cutoffLocked, splitFee } from "./routing.js";
 import { HttpError, requireValue } from "./errors.js";
 import type { Db, Identity } from "./db.js";
 import { platform } from "./db.js";
@@ -11,21 +11,15 @@ import type { Config } from "./config.js";
 import { identifier, validSignature, signature } from "./crypto.js";
 import { seedTenant } from "./seed.js";
 import { tokenFor } from "./auth.js";
+import { ensureDailyTrips } from "./trips.js";
 export async function ensureDay(q: Db, tenant: string) {
-  const t = requireValue(
-    (await q.query("SELECT * FROM tenants WHERE id=$1", [tenant])).rows[0],
-  );
-  const clock = tenantClock(t);
+  const { t, clock } = await ensureDailyTrips(q, tenant);
   await q.query(
     "INSERT INTO notifications(tenant_id,user_id,kind,message,dedupe_key) SELECT v.tenant_id,a.id,'LICENSE_EXPIRY',u.name||': license expires '||v.license_expiry::text,'license:'||v.driver_id::text||':'||v.license_expiry::text FROM driver_verifications v JOIN users u ON u.tenant_id=v.tenant_id AND u.id=v.driver_id JOIN users a ON a.tenant_id=v.tenant_id AND a.role='ADMIN' WHERE v.tenant_id=$1 AND v.license_expiry BETWEEN current_date AND current_date+30 ON CONFLICT(tenant_id,user_id,dedupe_key) DO NOTHING",
     [tenant],
   );
   await q.query(
     "INSERT INTO daily_attendance(tenant_id,student_id,trip_date) SELECT u.tenant_id,u.id,$2 FROM users u JOIN student_stops s ON s.tenant_id=u.tenant_id AND s.student_id=u.id WHERE u.tenant_id=$1 AND u.role='STUDENT' AND u.active=true ON CONFLICT(tenant_id,student_id,trip_date) DO NOTHING",
-    [tenant, clock.date],
-  );
-  await q.query(
-    "INSERT INTO trips(tenant_id,route_id,driver_id,trip_date) SELECT r.tenant_id,r.id,r.driver_id,$2 FROM routes r JOIN driver_verifications v ON v.tenant_id=r.tenant_id AND v.driver_id=r.driver_id WHERE r.tenant_id=$1 AND v.status='VERIFIED' ON CONFLICT(tenant_id,route_id,trip_date) DO UPDATE SET driver_id=EXCLUDED.driver_id WHERE trips.status='IDLE'",
     [tenant, clock.date],
   );
   return { t, clock };
@@ -448,9 +442,10 @@ export function operations(api: Api, rt: Runtime, c: Config) {
         throw new HttpError(403, "Demo helpers disabled");
       const { q, user } = ctx;
       const t = (
-        await q.query("SELECT contact_email FROM tenants WHERE id=$1", [
-          user.tenantId,
-        ])
+        await q.query(
+          "SELECT contact_email FROM tenants WHERE id=$1 FOR NO KEY UPDATE",
+          [user.tenantId],
+        )
       ).rows[0];
       if (t?.contact_email !== "sunrise@example.test")
         throw new HttpError(
@@ -462,7 +457,9 @@ export function operations(api: Api, rt: Runtime, c: Config) {
         [user.tenantId],
       );
       // Standalone student/parent alerts have no trip to cascade through.
-      await q.query("DELETE FROM sos_events WHERE tenant_id=$1", [user.tenantId]);
+      await q.query("DELETE FROM sos_events WHERE tenant_id=$1", [
+        user.tenantId,
+      ]);
       await q.query("DELETE FROM routes WHERE tenant_id=$1", [user.tenantId]);
       await q.query("DELETE FROM notifications WHERE tenant_id=$1", [
         user.tenantId,
